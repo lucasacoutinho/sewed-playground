@@ -1,0 +1,577 @@
+{
+  "version": 2,
+  "entrypoints": {
+    "main": "src/main/app.ts",
+    "renderer": "src/renderer/main.tsx",
+    "workers": [
+      "src/worker/clock.ts",
+      "src/worker/compute.ts",
+      "src/worker/resources.ts"
+    ]
+  },
+  "verification": {
+    "production": [
+      "pnpm",
+      "verify"
+    ],
+    "development": [
+      "pnpm",
+      "verify",
+      "--dev"
+    ],
+    "preconditions": [
+      "pnpm build",
+      "Run in an Electron-capable desktop session; renderer URLs in a regular browser do not have the preload."
+    ]
+  },
+  "features": {
+    "desktop": {
+      "title": "Desktop shell and native window controls",
+      "runtime": "main",
+      "route": "/",
+      "navigation": "#nav-requests",
+      "surface": "[data-sewed-playground]",
+      "sources": [
+        "src/main/app.ts",
+        "src/main/session.ts",
+        "src/renderer/app/AppShell.tsx",
+        "src/renderer/app/desktop-context.tsx",
+        "src/renderer/app/RuntimeLane.tsx",
+        "src/renderer/features/window/MainLane.tsx",
+        "src/renderer/features/window/use-window-controls.ts"
+      ],
+      "controls": {
+        "close": "[data-close]",
+        "reload": "[data-reload]",
+        "maximize": "[data-maximize]",
+        "restore": "[data-restore]",
+        "terminate": "[data-terminate]"
+      },
+      "observations": {
+        "identity": "[data-window]",
+        "state": "[data-session]"
+      },
+      "scenarios": [
+        {
+          "id": "shared-worker",
+          "description": "Two windows share one worker instance.",
+          "checks": [
+            "shared-worker"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "window-isolation",
+          "description": "Window controls and React state belong to the calling window.",
+          "checks": [
+            "window-isolation"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "window-shutdown",
+          "description": "Window ownership updates on close and application scope closes cleanly on quit.",
+          "checks": [
+            "window-shutdown"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "runtime-ungated",
+          "description": "Every hook runs unconditionally from first render; the runtime lane never remounts as the store connects and becomes ready.",
+          "checks": [
+            "runtime-ungated"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [
+        "verify:windows",
+        "verify:app",
+        "verify:dx"
+      ],
+      "featureDirectories": [
+        "window"
+      ]
+    },
+    "renderer": {
+      "title": "Renderer-local interaction",
+      "runtime": "renderer",
+      "route": "/",
+      "navigation": "#nav-requests",
+      "surface": ".renderer-lane",
+      "sources": [
+        "src/renderer/features/renderer/RendererLane.tsx",
+        "src/renderer/features/renderer/use-heartbeat.ts"
+      ],
+      "controls": {
+        "increment": "[data-local]"
+      },
+      "observations": {
+        "heartbeat": "[data-ticks]",
+        "count": "[data-local]"
+      },
+      "scenarios": [
+        {
+          "id": "renderer-bundle",
+          "description": "The renderer bundle contains clients and UI without native or worker implementations.",
+          "checks": [
+            "renderer-bundle"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "fast-refresh",
+          "description": "Vite Fast Refresh updates React components while preserving local state and the worker owner.",
+          "checks": [
+            "fast-refresh"
+          ],
+          "when": "development"
+        },
+        {
+          "id": "cpu-responsive",
+          "description": "The renderer and main process remain responsive during synchronous worker CPU work.",
+          "checks": [
+            "cpu-responsive"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "accessible-layout",
+          "description": "The narrow layout has no horizontal overflow and reduced motion disables activity animation.",
+          "checks": [
+            "accessible-layout"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [],
+      "featureDirectories": [
+        "renderer"
+      ]
+    },
+    "background": {
+      "title": "Application-owned worker stream",
+      "runtime": "worker",
+      "route": "/",
+      "navigation": "#nav-requests",
+      "surface": "[data-app-work]",
+      "sources": [
+        "src/main/session.ts",
+        "src/worker/clock.ts",
+        "src/worker/compute.ts",
+        "src/renderer/features/background/ApplicationWork.tsx"
+      ],
+      "controls": {},
+      "observations": {
+        "state": "[data-app-work-status]"
+      },
+      "scenarios": [
+        {
+          "id": "background-start",
+          "description": "The main process starts one bound worker stream before creating any window.",
+          "checks": [
+            "background-start"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "worker-dependency",
+          "description": "The compute worker consumes a stream from its explicitly bound clock worker.",
+          "checks": [
+            "worker-dependency"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "background-reload",
+          "description": "Renderer reload preserves the application's existing worker stream.",
+          "checks": [
+            "background-reload"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "dependency-cleanup",
+          "description": "Compute termination releases its downstream stream while the clock owner stays alive.",
+          "checks": [
+            "dependency-cleanup"
+          ],
+          "when": "owner-exit"
+        },
+        {
+          "id": "background-window-close",
+          "description": "Closing one window leaves the application-owned stream running.",
+          "checks": [
+            "background-window-close"
+          ],
+          "when": "application-lifetime"
+        },
+        {
+          "id": "background-shutdown",
+          "description": "Application shutdown releases the pending worker stream and exits cleanly.",
+          "checks": [
+            "background-shutdown"
+          ],
+          "when": "application-lifetime"
+        },
+        {
+          "id": "clock-shutdown",
+          "description": "Application shutdown releases the clock stream and closes its owner.",
+          "checks": [
+            "clock-shutdown"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [
+        "verify:lifecycle"
+      ],
+      "featureDirectories": [
+        "background"
+      ]
+    },
+    "requests": {
+      "title": "Worker requests, cancellation and typed errors",
+      "runtime": "worker",
+      "route": "/",
+      "navigation": "#nav-requests",
+      "surface": "#panel-requests",
+      "sources": [
+        "src/worker/compute.ts",
+        "src/shared/contracts.ts",
+        "src/renderer/features/worker/Requests.tsx",
+        "src/renderer/features/worker/WorkerLane.tsx",
+        "src/renderer/features/worker/use-worker.ts",
+        "src/renderer/routes/index.tsx"
+      ],
+      "controls": {
+        "cpu": "[data-cpu]",
+        "slow": "[data-slow]",
+        "replace": "[data-latest]",
+        "cancel": "[data-cancel]",
+        "reject": "[data-reject]"
+      },
+      "observations": {
+        "thread": "[data-thread]",
+        "status": "[data-work-status]",
+        "error": "[data-error]"
+      },
+      "scenarios": [
+        {
+          "id": "typed-errors",
+          "description": "Typed worker errors reach React without stopping the owner.",
+          "checks": [
+            "typed-errors"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "request-replacement",
+          "description": "The latest action interrupts the old request and publishes the new result.",
+          "checks": [
+            "request-replacement"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "request-cancellation",
+          "description": "Explicit cancellation releases the worker handler and updates both snapshots.",
+          "checks": [
+            "request-cancellation"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "document-reload",
+          "description": "Reload releases document requests and local state, then binds the same worker.",
+          "checks": [
+            "document-reload"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "worker-exit",
+          "description": "Worker exit fails pending calls, disables requests in both windows, and preserves renderer and main controls.",
+          "checks": [
+            "worker-exit"
+          ],
+          "when": "owner-exit"
+        },
+        {
+          "id": "stopped-owner-reload",
+          "description": "Reload preserves stopped owner state without reconnecting to the dead worker.",
+          "checks": [
+            "stopped-owner-reload"
+          ],
+          "when": "owner-exit"
+        }
+      ],
+      "nativeChecks": [],
+      "featureDirectories": [
+        "worker"
+      ]
+    },
+    "scopes": {
+      "title": "React component scope",
+      "runtime": "renderer",
+      "route": "/scopes",
+      "navigation": "#nav-scopes",
+      "surface": "#panel-scopes",
+      "sources": [
+        "src/renderer/features/scopes/Scopes.tsx",
+        "src/renderer/features/scopes/use-lease.ts",
+        "src/renderer/routes/scopes.tsx"
+      ],
+      "controls": {
+        "acquire": "[data-lease]",
+        "release": "[data-release]",
+        "fail": "[data-lease-fail]",
+        "unmount": "[data-unmount]"
+      },
+      "observations": {
+        "leases": "[data-lease-count]",
+        "result": "[data-lease-result]"
+      },
+      "scenarios": [
+        {
+          "id": "react-scopes",
+          "description": "React action scopes close on replacement, cancellation, failure, and unmount.",
+          "checks": [
+            "react-scopes"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [],
+      "featureDirectories": [
+        "scopes"
+      ]
+    },
+    "renderers": {
+      "title": "Renderer documents and recovery",
+      "runtime": "main",
+      "route": "/renderers",
+      "navigation": "#nav-renderers",
+      "surface": "#panel-renderers",
+      "sources": [
+        "src/main/session.ts",
+        "src/shared/contracts.ts",
+        "src/renderer/features/renderers/Renderers.tsx",
+        "src/renderer/features/renderers/use-renderers.ts",
+        "src/renderer/routes/renderers.tsx"
+      ],
+      "controls": {
+        "reload": "[data-reload-renderer]",
+        "recover": "[data-recover-renderer]"
+      },
+      "observations": {
+        "owner": "[data-renderer-owner]",
+        "document": "[data-renderer-state]",
+        "responsiveness": "[data-renderer-responsiveness]"
+      },
+      "scenarios": [
+        {
+          "id": "renderer-loss",
+          "description": "Renderer process loss releases document requests while native windows and workers survive.",
+          "checks": [
+            "renderer-loss"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "renderer-recovery",
+          "description": "Another window explicitly reloads the lost renderer and keeps the same bound owners.",
+          "checks": [
+            "renderer-recovery"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [
+        "verify:responsiveness",
+        "verify:webcontents"
+      ],
+      "featureDirectories": [
+        "renderers"
+      ]
+    },
+    "resources": {
+      "title": "Scoped remote resource and binary stream",
+      "runtime": "worker",
+      "route": "/resources",
+      "navigation": "#nav-resources",
+      "surface": "#panel-resources",
+      "sources": [
+        "src/shared/resources.ts",
+        "src/worker/resources.ts",
+        "src/renderer/features/resources/Resources.tsx",
+        "src/renderer/features/resources/use-resource.ts",
+        "src/renderer/routes/resources.tsx"
+      ],
+      "controls": {
+        "acquire": "[data-acquire-resource]",
+        "read": "[data-read-resource]",
+        "cancel": "[data-cancel-transfer]",
+        "release": "[data-release-resource]"
+      },
+      "observations": {
+        "resource": "[data-resource-state]",
+        "transfer": "[data-transfer-state]",
+        "bytes": "[data-received-bytes]"
+      },
+      "scenarios": [
+        {
+          "id": "remote-resource",
+          "description": "A StrictMode React resource hook acquires after commit, serializes replacement, streams 32 MiB, and releases on route exit.",
+          "checks": [
+            "remote-resource"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [
+        "verify:resource-inspection",
+        "verify:remote",
+        "verify:binary"
+      ],
+      "featureDirectories": [
+        "resources"
+      ]
+    },
+    "source": {
+      "title": "Ownership reference",
+      "runtime": "renderer",
+      "route": "/source",
+      "navigation": "#nav-source",
+      "surface": "#panel-source",
+      "sources": [
+        "src/renderer/features/source/SourceMap.tsx",
+        "src/renderer/routes/source.tsx"
+      ],
+      "controls": {
+        "expand": "[data-source-example=\"worker\"] > summary"
+      },
+      "observations": {
+        "examples": "#panel-source pre"
+      },
+      "scenarios": [
+        {
+          "id": "feature-map",
+          "description": "The feature map locates every feature and its controls through keyboard navigation.",
+          "checks": [
+            "feature-map"
+          ],
+          "when": "always"
+        },
+        {
+          "id": "router-navigation",
+          "description": "TanStack routes support keyboard links, back/forward history, and reload without changing native owners.",
+          "checks": [
+            "router-navigation"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [],
+      "featureDirectories": [
+        "source"
+      ]
+    },
+    "surfaces": {
+      "title": "Desktop surfaces hosted by main",
+      "runtime": "main",
+      "route": "/surfaces",
+      "navigation": "#nav-surfaces",
+      "surface": "#panel-surfaces",
+      "sources": [
+        "src/main/app.ts",
+        "src/shared/bindings.ts",
+        "src/renderer/features/surfaces/Surfaces.tsx",
+        "src/renderer/features/surfaces/use-surfaces.ts",
+        "src/renderer/routes/surfaces.tsx"
+      ],
+      "controls": {
+        "dark": "[data-theme-dark]",
+        "light": "[data-theme-light]",
+        "system": "[data-theme-system]",
+        "copy": "[data-clipboard-write]",
+        "read": "[data-clipboard-read]",
+        "power": "[data-power-refresh]",
+        "zoomIn": "[data-zoom-in]",
+        "zoomReset": "[data-zoom-reset]"
+      },
+      "observations": {
+        "theme": "[data-theme-source]",
+        "clipboardInput": "[data-clipboard-input]",
+        "clipboard": "[data-clipboard-value]",
+        "power": "[data-power-state]",
+        "zoom": "[data-zoom]",
+        "error": "[data-surfaces-error]"
+      },
+      "scenarios": [
+        {
+          "id": "desktop-surfaces",
+          "description": "Theme, clipboard, power, and zoom reach the renderer through library-hosted owners with main-chosen policy.",
+          "checks": [
+            "theme-source",
+            "clipboard-roundtrip",
+            "power-snapshot",
+            "window-zoom"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [],
+      "featureDirectories": [
+        "surfaces"
+      ]
+    },
+    "guest": {
+      "title": "A guest tab driven through a hosted owner",
+      "runtime": "main",
+      "route": "/guest",
+      "navigation": "#nav-guest",
+      "surface": "#panel-guest",
+      "sources": [
+        "src/main/app.ts",
+        "src/main/guest.ts",
+        "src/shared/bindings.ts",
+        "src/renderer/features/guest/Guest.tsx",
+        "src/renderer/features/guest/use-guest.ts",
+        "src/renderer/routes/guest.tsx"
+      ],
+      "controls": {
+        "urlInput": "[data-guest-url-input]",
+        "go": "[data-guest-go]",
+        "back": "[data-guest-back]",
+        "forward": "[data-guest-forward]",
+        "capture": "[data-guest-capture]"
+      },
+      "observations": {
+        "state": "[data-guest-state]",
+        "captured": "[data-guest-capture-bytes]",
+        "error": "[data-guest-error]"
+      },
+      "scenarios": [
+        {
+          "id": "guest-tab",
+          "description": "A renderer drives a main-owned guest view through GuestView.protocol within the host policy.",
+          "checks": [
+            "guest-ready",
+            "guest-navigate",
+            "guest-policy",
+            "guest-capture"
+          ],
+          "when": "always"
+        }
+      ],
+      "nativeChecks": [
+        "verify:guest"
+      ],
+      "featureDirectories": [
+        "guest"
+      ]
+    }
+  }
+}

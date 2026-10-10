@@ -1,0 +1,15 @@
+# Sewed playground
+
+This is an external consumer of the Sewed library, not part of its package.
+
+- Keep composition and native ownership in `src/main`, computations in `src/worker`, React UI in `src/renderer`, and inert schemas/bindings in `src/shared`.
+- Start a feature investigation with [FEATURES.md](FEATURES.md), then open its record under [docs/features](docs/features) for behavior, ownership, lifetimes, dependencies, implementation paths, and expected scenarios. Keep the record current when behavior changes. `pnpm check` rejects a mapped feature without a linked record or the required record sections. Use [ARCHITECTURE.md](ARCHITECTURE.md) to choose where code belongs.
+- Feature components and hooks live together under `renderer/features/<name>`; `renderer/app` and TanStack routes compose them. `pnpm check` enforces imports, runtime globals, effect-hook bans and source style.
+- Follow [docs/verification.md](docs/verification.md) to exercise a feature. Test selectors, source ownership and assertion IDs live in `scripts/feature-map.json`. Register feature directories and their source files there; map scenarios to stable assertion IDs in `scripts/verify.mjs`. Use `pnpm verify:features` to inspect that test metadata. Missing required evidence fails the run.
+- Inspect recorded evidence with `pnpm verify:features <id> --report <file>`; accept a passing report only when its fingerprints match the current files. Rebuild stale application output before verification. In a failed run, `not-observed` means a scenario lacks evidence, not that its behavior was tested and failed. Use `pnpm verify --lifetime` for application-owned work and `pnpm verify --dev` for Fast Refresh.
+- Use the public Sewed exports. Execution placement comes from Effect requirements, runtime capabilities, and instance bindings; folders alone do not enforce it.
+- Keep the renderer a normal Vite + TanStack Router app. Use file routes, `Link`, and `Outlet`; do not hand-maintain `routeTree.gen.ts`. Components can use pure Effect helpers such as `Match`. Prefer `Match` over nested ternaries, with exhaustive cases for unions. Feature hooks own Sewed runtime integration through `useClient`, `useAction`, `useStream`, and `useResource`, with a single bootstrap adapter in `renderer/lib`. Do not add `useEffect` or substitute `useLayoutEffect` for it. Timers, subscriptions, and resource lifetimes belong to scoped effects and streams.
+- DevTools is headless. Use typed snapshots and the existing Effect tracer; do not add a Sewed inspector UI or extra application window for diagnostics.
+- Report observed runtime state. Do not simulate process activity or silently replace stopped owners.
+- Run `pnpm check`, `pnpm build`, and `pnpm verify` after behavior changes. Run `pnpm verify --dev` when changing the Vite/bootstrap integration. Inspect fresh screenshots for visual changes. The harness owns and cleans up only its own app process.
+- Keep playground work outside `../sewed` unless a library change is explicitly required by the active task.
