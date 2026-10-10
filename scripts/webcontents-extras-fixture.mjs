@@ -189,6 +189,47 @@ const runChecks = (origin) =>
       audio: audio.values,
     });
 
+    {
+      const native = NativeBrowserWindow.getAllWindows()[0].webContents;
+      const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "sewed-save-page-")));
+      const archive = join(directory, "page.mhtml");
+      yield* web.savePage(archive, "MHTML");
+      const archived = yield* Effect.promise(() => readFile(archive, "latin1"));
+      assert.ok(archived.includes("multipart/related"), "an MHTML archive was written");
+      expectCode(yield* Effect.exit(web.savePage("page.mhtml", "MHTML")), "Protocol");
+      expectCode(yield* Effect.exit(web.savePage(archive, "PDF")), "Protocol");
+      yield* web.setBackgroundThrottling(false);
+      assert.equal(native.getBackgroundThrottling(), false);
+      yield* web.setBackgroundThrottling(true);
+      assert.equal(native.getBackgroundThrottling(), true);
+      expectCode(yield* Effect.exit(web.setBackgroundThrottling("no")), "Protocol");
+      yield* web.setIgnoreMenuShortcuts(true);
+      yield* web.setIgnoreMenuShortcuts(false);
+      yield* Effect.promise(() =>
+        native.executeJavaScript(
+          `(() => { const field = document.createElement("input"); field.id = "typed"; document.body.append(field); field.focus(); })()`,
+        ),
+      );
+      native.focus();
+      yield* web.insertText("sewed");
+      const typed = yield* Effect.promise(() =>
+        native.executeJavaScript(`document.getElementById("typed").value`),
+      );
+      assert.equal(typed, "sewed");
+      // Nothing is loading, so stopping is a no-op that must still succeed.
+      yield* web.stopLoading;
+      const before = states.values.length;
+      yield* web.reloadIgnoringCache;
+      yield* waitUntil(
+        () => states.values.length > before && states.values.at(-1).status === "ready",
+        "document ready after a cache-bypassing reload",
+      );
+      record("a page saves as an archive, takes typed text, and reloads past the cache", {
+        archiveBytes: archived.length,
+        typed,
+      });
+    }
+
     const searchScope = yield* Scope.fork(yield* Effect.scope);
     const search = yield* web.find("needle").pipe(Scope.provide(searchScope));
     const results = yield* observe(search.results);
@@ -420,9 +461,13 @@ const runChecks = (origin) =>
     );
     // A scoped decider keeps native governance active independently of downloads observers.
     const listenersBeforeSave = nativeWindow.webContents.session.listenerCount("will-download");
+    const offered = [];
     yield* web.decide(
       Decidables.WebContents.Download,
-      Decision.sync((offer) => ({ kind: "save", path: join(downloadDirectory, offer.filename) })),
+      Decision.sync((offer) => {
+        offered.push(offer);
+        return { kind: "save", path: join(downloadDirectory, offer.filename) };
+      }),
     );
     assert.equal(
       nativeWindow.webContents.session.listenerCount("will-download"),
@@ -437,6 +482,11 @@ const runChecks = (origin) =>
     assert.equal(outcome.kind, "completed");
     const bytes = yield* Effect.promise(() => readFile(join(downloadDirectory, "report.pdf")));
     assert.equal(bytes.subarray(0, 4).toString("latin1"), "%PDF");
+    // The offer says how the download came about: its redirect chain and whether a user asked.
+    assert.equal(offered.length, 1);
+    assert.deepEqual(offered[0].urlChain, [new URL("/report.pdf", origin).href]);
+    assert.equal(typeof offered[0].userGesture, "boolean");
+    assert.equal(typeof offered[0].contentDisposition, "string");
     yield* Fiber.interrupt(saved.fiber);
     assert.equal(
       nativeWindow.webContents.session.listenerCount("will-download"),

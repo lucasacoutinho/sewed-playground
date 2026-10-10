@@ -107,6 +107,11 @@ const runChecks = (origin) =>
       const loginItems = yield* App.loginItems;
       assert.equal(typeof loginItems.openAtLogin, "boolean");
       assert.equal(typeof (yield* App.badge), "number");
+      const metrics = yield* App.metrics;
+      assert.ok(metrics.some((metric) => metric.type === "Browser" && metric.pid === process.pid));
+      assert.ok(metrics.every((metric) => metric.memory.workingSetSize > 0));
+      assert.equal(yield* App.hasSingleInstanceLock, app.hasSingleInstanceLock());
+      expectCode(yield* Effect.exit(App.relaunch({ execPath: "" })), "Protocol");
       yield* App.setAboutPanel({ applicationName: "Sewed extras", authors: ["Sewed"] });
       assert.equal(typeof (yield* App.isDefaultProtocolClient({ scheme: "sewed-extras" })), "boolean");
       expectCode(yield* Effect.exit(App.isDefaultProtocolClient({ scheme: "Sewed" })), "Protocol");

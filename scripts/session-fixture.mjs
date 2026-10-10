@@ -172,18 +172,30 @@ const runChecks = Effect.gen(function* () {
   // setCertificatePolicy, setPreconnect, and setDisplayMedia are gone, replaced by
   // Decidables.Session and handle.decide, and the Rules bundle is gone with Session.intercept.
   assert.deepEqual(Object.keys(Session).sort(), [
+    "addSpellCheckerWord",
     "cacheSize",
+    "clearAuthCache",
     "clearCache",
+    "clearCodeCaches",
+    "clearHostResolverCache",
+    "clearNetworkEmulation",
     "defaultSession",
+    "flushStorage",
+    "forceReloadProxyConfig",
     "fromPartition",
     "loadExtension",
+    "removeSpellCheckerWord",
     "resolveProxy",
     "serviceWorkers",
     "setDownloadPath",
+    "setNetworkEmulation",
     "setProxy",
+    "setSSLConfig",
     "setSpellChecker",
     "setUserAgent",
     "spellChecker",
+    "spellCheckerWords",
+    "storagePath",
     "userAgent",
   ]);
   const firstHandle = yield* memoryDefinition;

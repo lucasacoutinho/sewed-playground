@@ -510,6 +510,41 @@ const runChecks = Effect.gen(function* () {
     yield* first.handle.setResizable(true);
     yield* first.handle.setAlwaysOnTop(false);
     yield* Fiber.interrupt(appearance.fiber);
+    yield* first.handle.setMinimumSize({ width: 200, height: 150 });
+    yield* first.handle.setMaximumSize({ width: 1200, height: 900 });
+    assert.deepEqual(yield* first.handle.sizeLimits, {
+      minimum: { width: 200, height: 150 },
+      maximum: { width: 1200, height: 900 },
+    });
+    assert.deepEqual(first.native.getMinimumSize(), [200, 150]);
+    yield* first.handle.setMaximumSize({ width: 0, height: 0 });
+    yield* first.handle.setMinimumSize({ width: 0, height: 0 });
+    expectCode(yield* Effect.exit(first.handle.setMinimumSize({ width: -1, height: 1 })), "Protocol");
+    yield* first.handle.setAspectRatio(16 / 9);
+    yield* first.handle.setAspectRatio(0);
+    expectCode(yield* Effect.exit(first.handle.setAspectRatio(-1)), "Protocol");
+    assert.equal(yield* first.handle.enabled, true);
+    yield* first.handle.setEnabled(false);
+    assert.equal(first.native.isEnabled(), false);
+    assert.equal(yield* first.handle.enabled, false);
+    yield* first.handle.setEnabled(true);
+    yield* first.handle.setIgnoreMouseEvents(true);
+    yield* first.handle.setIgnoreMouseEvents(false);
+    yield* first.handle.setAutoHideMenuBar(true);
+    assert.equal(first.native.isMenuBarAutoHide(), true);
+    yield* first.handle.setAutoHideMenuBar(false);
+    yield* first.handle.setBackgroundColor("#102030");
+    assert.equal((yield* first.handle.backgroundColor).toLowerCase(), "#102030");
+    yield* first.handle.setVisibleOnAllWorkspaces(true);
+    const everywhere = yield* first.handle.visibleOnAllWorkspaces;
+    assert.equal(everywhere, first.native.isVisibleOnAllWorkspaces());
+    yield* first.handle.setVisibleOnAllWorkspaces(false);
+    yield* first.handle.center;
+    yield* first.handle.moveTop;
+    record("size limits, input, color, and placement commands reach the native window", {
+      everywhere,
+      bounds: first.native.getBounds(),
+    });
     record("appearance commands publish native state and reject values outside Electron's ranges", {
       title: first.native.getTitle(),
       alwaysOnTop: first.native.isAlwaysOnTop(),

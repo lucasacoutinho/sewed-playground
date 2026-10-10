@@ -765,6 +765,31 @@ const runChecks = (origin) =>
       yield* Session.setSpellChecker(session, { enabled: spell.enabled });
       yield* Session.clearCache(session);
       assert.equal(typeof (yield* Session.cacheSize(session)), "number");
+      yield* Session.clearAuthCache(session);
+      yield* Session.clearHostResolverCache(session);
+      yield* Session.clearCodeCaches(session);
+      yield* Session.clearCodeCaches(session, ["https://example.com/app.js"]);
+      expectCode(yield* Effect.exit(Session.clearCodeCaches(session, ["not a url"])), "Protocol");
+      yield* Session.flushStorage(session);
+      const storagePath = yield* Session.storagePath(session);
+      assert.ok(storagePath === null || typeof storagePath === "string");
+      yield* Session.forceReloadProxyConfig(session);
+      yield* Session.setNetworkEmulation(session, { offline: true });
+      expectCode(yield* Effect.exit(Session.setNetworkEmulation(session, { latency: -1 })), "Protocol");
+      yield* Session.clearNetworkEmulation(session);
+      yield* Session.setSSLConfig(session, { minVersion: "tls1.2", maxVersion: "tls1.3" });
+      expectCode(yield* Effect.exit(Session.setSSLConfig(session, { minVersion: "ssl3" })), "Protocol");
+      expectCode(yield* Effect.exit(Session.addSpellCheckerWord(session, "")), "Protocol");
+      const words = yield* Session.spellCheckerWords(session);
+      assert.ok(Array.isArray(words));
+      if (storagePath !== null) {
+        yield* Session.addSpellCheckerWord(session, "sewedword");
+        assert.ok((yield* Session.spellCheckerWords(session)).includes("sewedword"));
+        yield* Session.removeSpellCheckerWord(session, "sewedword");
+        assert.ok(!(yield* Session.spellCheckerWords(session)).includes("sewedword"));
+      } else {
+        expectCode(yield* Effect.exit(Session.addSpellCheckerWord(session, "sewedword")), "Native");
+      }
       const agent = yield* Session.userAgent(session);
       yield* Session.setUserAgent(session, `${agent} SewedExtras/1`);
       assert.ok((yield* Session.userAgent(session)).endsWith("SewedExtras/1"));
