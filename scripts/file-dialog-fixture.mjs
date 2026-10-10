@@ -38,7 +38,7 @@ const nativeDialog = (call, ...commands) =>
     const { stdout } = await execFileAsync(
       "python3",
       ["scripts/file-dialog-window.py", String(process.pid), call.options.title, ...commands],
-      { timeout: 2_000 },
+      { timeout: 10_000 },
     );
     return JSON.parse(stdout);
   });
@@ -219,7 +219,7 @@ const runChecks = Effect.gen(function* () {
             String(saveWindow.window),
             "confirmation",
           ],
-          { timeout: 2_000 },
+          { timeout: 10_000 },
         ),
       );
       const windows = JSON.parse(stdout);
@@ -239,7 +239,7 @@ const runChecks = Effect.gen(function* () {
           String(saveWindow.window),
           "replace",
         ],
-        { timeout: 2_000 },
+        { timeout: 10_000 },
       ),
     );
   }

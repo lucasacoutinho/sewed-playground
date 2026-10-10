@@ -97,10 +97,14 @@ with tempfile.TemporaryDirectory(prefix="sewed-xvfb-") as directory:
                 for _ in range(100):
                     if manager.poll() is not None:
                         raise RuntimeError("Window manager exited; see .artifacts/window-manager.log")
-                    result = subprocess.run(
-                        ["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"], env=environment,
-                        capture_output=True, text=True, timeout=2,
-                    )
+                    try:
+                        result = subprocess.run(
+                            ["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"], env=environment,
+                            capture_output=True, text=True, timeout=2,
+                        )
+                    except subprocess.TimeoutExpired:
+                        # A slow probe on a busy machine is "not ready yet", like any other miss.
+                        continue
                     if "window id # 0x" in result.stdout:
                         break
                     time.sleep(0.05)

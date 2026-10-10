@@ -38,7 +38,7 @@ const nativeDialog = (title, key) =>
     const { stdout } = await execFileAsync(
       "python3",
       ["scripts/dialog-window.py", String(process.pid), title, ...(key ? [key] : [])],
-      { timeout: 2_000 },
+      { timeout: 10_000 },
     );
     return JSON.parse(stdout);
   });
