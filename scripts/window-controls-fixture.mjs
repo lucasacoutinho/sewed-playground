@@ -535,6 +535,7 @@ const runChecks = Effect.gen(function* () {
     yield* first.handle.setAutoHideMenuBar(false);
     yield* first.handle.setBackgroundColor("#102030");
     assert.equal((yield* first.handle.backgroundColor).toLowerCase(), "#102030");
+    expectCode(yield* Effect.exit(first.handle.setBackgroundColor("")), "Protocol");
     yield* first.handle.setVisibleOnAllWorkspaces(true);
     const everywhere = yield* first.handle.visibleOnAllWorkspaces;
     assert.equal(everywhere, first.native.isVisibleOnAllWorkspaces());

@@ -51,17 +51,17 @@
     "check": "pnpm check:architecture && pnpm typecheck && pnpm test:architecture"
   },
   "dependencies": {
-    "@sewed/react": "file:../sewed/.artifacts/gaps-d65ce1d2/sewed-react-0.0.0-prototype.50.tgz",
+    "@sewed/react": "file:../sewed/.artifacts/gaps-19d178de/sewed-react-0.0.0-prototype.50.tgz",
     "@tanstack/react-router": "1.170.34",
     "effect": "4.0.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sewed": "file:../sewed/.artifacts/gaps-d65ce1d2/sewed-0.0.0-prototype.50.tgz",
-    "@sewed/forge": "file:../sewed/.artifacts/gaps-d65ce1d2/sewed-forge-0.0.0-prototype.50.tgz"
+    "sewed": "file:../sewed/.artifacts/gaps-19d178de/sewed-0.0.0-prototype.50.tgz",
+    "@sewed/forge": "file:../sewed/.artifacts/gaps-19d178de/sewed-forge-0.0.0-prototype.50.tgz"
   },
   "devDependencies": {
-    "@sewed/devtools": "file:../sewed/.artifacts/gaps-d65ce1d2/sewed-devtools-0.0.0-prototype.50.tgz",
-    "@sewed/vite": "file:../sewed/.artifacts/gaps-d65ce1d2/sewed-vite-0.0.0-prototype.50.tgz",
+    "@sewed/devtools": "file:../sewed/.artifacts/gaps-19d178de/sewed-devtools-0.0.0-prototype.50.tgz",
+    "@sewed/vite": "file:../sewed/.artifacts/gaps-19d178de/sewed-vite-0.0.0-prototype.50.tgz",
     "@tanstack/router-plugin": "1.168.37",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
