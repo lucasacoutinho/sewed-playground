@@ -173,6 +173,24 @@ const run = Effect.gen(function* () {
     baseNative.contentView.children.map((child) => child.getVisible()),
     [true, false],
   );
+  {
+    const seenBounds = [];
+    const boundsFiber = yield* attachmentA.boundsChanges.pipe(
+      Stream.runForEach((bounds) => Effect.sync(() => seenBounds.push(bounds))),
+      Effect.forkScoped,
+    );
+    yield* Effect.sleep(20);
+    const moved = { ...boundsA, width: boundsA.width - 10 };
+    yield* attachmentA.setBounds(moved);
+    yield* waitUntil(() => seenBounds.length > 0, "view bounds change");
+    assert.deepEqual(seenBounds.at(-1), moved);
+    yield* attachmentA.setBounds(boundsA);
+    yield* Fiber.interrupt(boundsFiber);
+    yield* attachmentA.setBackgroundBlur(4);
+    yield* attachmentA.setBackgroundBlur(0);
+    const refusedBlur = yield* Effect.exit(attachmentA.setBackgroundBlur(-1));
+    assert.equal(refusedBlur._tag, "Failure", "a negative blur radius is refused");
+  }
   record("BaseWindow attaches both native views with validated bounds and visibility", {
     children: baseNative.contentView.children.map((child) => ({
       bounds: child.getBounds(),

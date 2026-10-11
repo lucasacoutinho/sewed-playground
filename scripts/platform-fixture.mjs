@@ -9,7 +9,12 @@ import {
   DesktopCapturer,
   InAppPurchase,
   PushNotifications,
+  Image,
+  NativeTheme,
+  Notification,
+  Screen,
   Session,
+  Shell,
   SystemPreferences,
 } from "sewed/main";
 
@@ -233,6 +238,85 @@ const runChecks = (origin) =>
         hidOutcome,
         usbOutcome,
         serialOutcome,
+      });
+
+      // Members Electron implements on some platforms only: where it does, the call must succeed;
+      // elsewhere it must fail Native. Input is refused as Protocol on every platform.
+      const platformResults = [];
+      const on = (platforms, name, effect) =>
+        Effect.gen(function* () {
+          assert.ok(effect !== undefined, `${name} is not a member`);
+          const exit = yield* Effect.exit(effect);
+          if (platforms.includes(process.platform)) {
+            assert.equal(exit._tag, "Success", name);
+            platformResults.push([name, "ran"]);
+            return exit.value;
+          }
+          expectCode(exit, "Native");
+          platformResults.push([name, "Native"]);
+          return undefined;
+        });
+      const both = ["darwin", "win32"];
+      yield* on(both, "window.focusable", window.focusable);
+      yield* on(both, "window.setFocusable", window.setFocusable(true));
+      yield* on(both, "window.contentProtected", window.contentProtected);
+      yield* on(["darwin"], "window.setVibrancy", window.setVibrancy("sidebar"));
+      yield* on(["darwin"], "window.setVibrancy(null)", window.setVibrancy(null));
+      yield* on(["darwin"], "window.documentEdited", window.documentEdited);
+      yield* on(["darwin"], "window.representedFilename", window.representedFilename);
+      yield* on(["darwin"], "window.windowButtonPosition", window.windowButtonPosition);
+      yield* on(["darwin"], "window.hiddenInMissionControl", window.hiddenInMissionControl);
+      yield* on(["darwin"], "window.tabs.identifier", window.tabs.identifier);
+      yield* on(["darwin"], "window.invalidateShadow", window.invalidateShadow);
+      yield* on(["win32"], "window.snapped", window.snapped);
+      yield* on(["win32"], "window.tabletMode", window.tabletMode);
+      yield* on(["win32"], "window.setBackgroundMaterial", window.setBackgroundMaterial("none"));
+      yield* on(["win32"], "window.setAccentColor", window.setAccentColor(null));
+      yield* on(["win32"], "window.setThumbnailToolTip", window.setThumbnailToolTip("Sewed"));
+      yield* on(["win32"], "window.setThumbarButtons", window.setThumbarButtons([]));
+      yield* on(["darwin"], "webContents.showDefinitionForSelection", window.webContents.showDefinitionForSelection);
+      yield* on(both, "App.recentDocuments.list", App.recentDocuments.list);
+      yield* on(both, "App.accessibility.enabled", App.accessibility.enabled);
+      yield* on(both, "App.accessibility.features", App.accessibility.features);
+      yield* on(both, "App.runningUnderArm64Translation", App.runningUnderArm64Translation);
+      yield* on(["darwin"], "App.active", App.active);
+      yield* on(["darwin"], "App.hidden", App.hidden);
+      yield* on(["darwin"], "App.activity.current", App.activity.current);
+      yield* on(["darwin"], "App.applicationsFolder.contains", App.applicationsFolder.contains);
+      yield* on(["win32"], "App.toastActivatorClsid", App.toastActivatorClsid);
+      yield* on(["win32"], "App.taskbar.jumpListSettings", App.taskbar.jumpListSettings);
+      yield* on(["darwin"], "Notification.delivered", Notification.delivered);
+      yield* on(["darwin"], "SystemPreferences.canPromptTouchId", SystemPreferences.canPromptTouchId);
+      yield* on(["darwin"], "SystemPreferences.swipeTracking", SystemPreferences.swipeTrackingFromScrollEvents);
+      yield* on(["darwin"], "SystemPreferences.trustedAccessibilityClient", SystemPreferences.trustedAccessibilityClient(false));
+      yield* on(["win32"], "Screen.dipToScreenRect", Screen.dipToScreenRect({ x: 0, y: 0, width: 10, height: 10 }));
+      yield* on(["darwin"], "Image.named", Image.named("NSImageNameAddTemplate"));
+      assert.equal(typeof (yield* App.emojiPanelSupported), "boolean");
+      expectCode(yield* Effect.exit(window.setVibrancy("glass")), "Protocol");
+      expectCode(yield* Effect.exit(window.setBackgroundMaterial("glass")), "Protocol");
+      expectCode(yield* Effect.exit(window.setThumbarButtons([{ id: "", icon: "x" }])), "Protocol");
+      expectCode(yield* Effect.exit(App.recentDocuments.add("relative.txt")), "Protocol");
+      expectCode(yield* Effect.exit(App.setActivationPolicy("hidden")), "Protocol");
+      expectCode(yield* Effect.exit(App.activity.set({ type: "", userInfo: null })), "Protocol");
+      expectCode(yield* Effect.exit(App.showCertificateTrustDialog("sha256/none", "Trust?")), "Protocol");
+      expectCode(yield* Effect.exit(Shell.readShortcutLink("relative.lnk")), "Protocol");
+      expectCode(yield* Effect.exit(Image.thumbnail("relative.png", { width: 16, height: 16 })), "Protocol");
+      expectCode(yield* Effect.exit(Notification.remove([])), "Protocol");
+      expectCode(yield* Effect.exit(SystemPreferences.registerDefaults({ nested: {} })), "Protocol");
+      const theme = yield* NativeTheme.current;
+      assert.equal("shouldDifferentiateWithoutColor" in theme, process.platform === "darwin");
+      assert.equal(
+        "shouldUseDarkColorsForSystemIntegratedUI" in theme,
+        process.platform === "darwin" || process.platform === "win32",
+      );
+      const activeFiber = yield* App.activeChanges.pipe(Stream.runDrain, Effect.forkScoped);
+      yield* Effect.sleep(20);
+      assert.ok(app.listenerCount("did-become-active") > 0, "activity changes listen while observed");
+      yield* Fiber.interrupt(activeFiber);
+      assert.equal(app.listenerCount("did-become-active"), 0);
+      record("platform-only members run where Electron implements them and fail Native elsewhere", {
+        platform: process.platform,
+        gated: Object.fromEntries(platformResults),
       });
 
       const bar = {

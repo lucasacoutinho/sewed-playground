@@ -1,0 +1,54 @@
+name: Native
+
+# Runs the native harness against real Electron on Windows and macOS. Linux runs locally under
+# Xvfb (see scripts/with-xvfb.py). The Sewed tarballs it consumes are vendored under vendor/sewed
+# and placed where package.json expects them.
+on:
+  push:
+    branches: [main, "native-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: sewed-playground
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: sewed-playground
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: sewed-playground/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Place the vendored Sewed tarballs
+        run: node scripts/place-vendor.mjs
+      - run: pnpm install --no-frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: pnpm verify:all
+      - name: Keep the Electron logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: harness-${{ matrix.os }}
+          path: |
+            sewed-playground/.artifacts/*-electron.log
+            sewed-playground/.artifacts/*-verification.json
+          if-no-files-found: ignore

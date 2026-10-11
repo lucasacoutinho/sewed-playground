@@ -979,6 +979,42 @@ const runChecks = (origin) =>
       );
       const workers = Session.serviceWorkers(session);
       assert.deepEqual(yield* workers.running, []);
+      assert.equal(yield* workers.info(987654), null);
+      const preloadScope = yield* Scope.fork(yield* Effect.scope);
+      const preloadPath = join(tmpdir(), "sewed-extra-preload.js");
+      writeFileSync(preloadPath, "// an application preload\n");
+      const preloadId = yield* Session.registerPreloadScript(session, {
+        type: "frame",
+        filePath: preloadPath,
+      }).pipe(Scope.provide(preloadScope));
+      assert.ok(
+        (yield* Session.preloadScripts(session)).some((script) => script.id === preloadId),
+        "the registered preload is listed",
+      );
+      yield* Scope.close(preloadScope, Exit.void);
+      assert.ok(
+        !(yield* Session.preloadScripts(session)).some((script) => script.id === preloadId),
+        "closing the scope unregisters it",
+      );
+      expectCode(
+        yield* Effect.exit(
+          Effect.scoped(
+            Session.registerPreloadScript(session, { type: "frame", filePath: "relative.js" }),
+          ),
+        ),
+        "Protocol",
+      );
+      expectCode(
+        yield* Effect.exit(
+          Session.resumeDownload(session, {
+            path: "relative.iso",
+            urlChain: ["https://example.com/a"],
+            offset: 0,
+            length: 1,
+          }),
+        ),
+        "Protocol",
+      );
       const workerEvents = yield* observe(workers.events);
       yield* Effect.sleep(50);
       yield* Fiber.interrupt(workerEvents.fiber);

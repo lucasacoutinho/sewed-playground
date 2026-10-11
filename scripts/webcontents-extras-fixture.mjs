@@ -287,6 +287,11 @@ const runChecks = (origin) =>
       });
       yield* web.disableDeviceEmulation;
       expectCode(yield* Effect.exit(web.edit("destroy")), "Protocol");
+      expectCode(
+        yield* Effect.exit(web.startDrag({ files: ["relative.txt"], icon: "/tmp/none.png" })),
+        "Protocol",
+      );
+      expectCode(yield* Effect.exit(web.startDrag({ files: [], icon: "/tmp/none.png" })), "Protocol");
       expectCode(yield* Effect.exit(web.takeHeapSnapshot("page.heapsnapshot")), "Protocol");
       expectCode(
         yield* Effect.exit(web.setVisualZoomLimits({ minimum: 3, maximum: 1 })),
@@ -597,6 +602,9 @@ const runChecks = (origin) =>
     yield* waitUntil(() => saved.values.length === 1, "window download accepted");
     const outcome = yield* saved.values[0].awaitDone;
     assert.equal(outcome.kind, "completed");
+    const downloadDetails = yield* saved.values[0].details;
+    assert.equal(downloadDetails.savePath, join(downloadDirectory, "report.pdf"));
+    assert.ok(downloadDetails.startTime > 0, "a start time");
     const bytes = yield* Effect.promise(() => readFile(join(downloadDirectory, "report.pdf")));
     assert.equal(bytes.subarray(0, 4).toString("latin1"), "%PDF");
     // The offer says how the download came about: its redirect chain and whether a user asked.

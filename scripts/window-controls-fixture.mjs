@@ -8,7 +8,14 @@ import {
 } from "electron";
 import { Cause, Deferred, Effect, Exit, Fiber, Schema, Scope, Stream } from "effect";
 import { Binding, Decidables, Decision, Renderer } from "sewed";
-import { App, BrowserWindow, Capability, WebContentsView, WindowControls } from "sewed/main";
+import {
+  App,
+  BaseWindow,
+  BrowserWindow,
+  Capability,
+  WebContentsView,
+  WindowControls,
+} from "sewed/main";
 
 const First = Binding.slot("first-window", WindowControls.protocol);
 const Second = Binding.slot("second-window", WindowControls.protocol);
@@ -572,6 +579,24 @@ const runChecks = Effect.gen(function* () {
     assert.ok(first.native.listenerCount("app-command") > 0, "events listen while observed");
     yield* Fiber.interrupt(windowEvents);
     assert.equal(first.native.listenerCount("app-command"), 0, "events release with the observer");
+    const persistScope = yield* Scope.fork(yield* Effect.scope);
+    const persisted = yield* BrowserWindow.make({
+      show: false,
+      width: 300,
+      height: 200,
+      name: "sewed-persisted",
+      windowStatePersistence: true,
+    }).pipe(Scope.provide(persistScope));
+    assert.equal(typeof persisted.id, "string");
+    yield* Scope.close(persistScope, Exit.void);
+    yield* BaseWindow.clearPersistedState("sewed-persisted");
+    expectCode(
+      yield* Effect.exit(
+        Effect.scoped(BrowserWindow.make({ show: false, windowStatePersistence: true })),
+      ),
+      "Protocol",
+    );
+    expectCode(yield* Effect.exit(BaseWindow.clearPersistedState("")), "Protocol");
     record("content geometry, accessibility, handle, and event members reach the native window", {
       content: first.native.getContentSize(),
       handleBytes: nativeHandle.byteLength,
@@ -1030,6 +1055,13 @@ const runChecks = Effect.gen(function* () {
     );
     const title = yield* automationWindow.automation.evaluate("document.title", Schema.String);
     assert.equal(title, "Sewed automation page");
+    yield* automationWindow.automation.evaluate("window.sewedPageMarker = 1; 1", Schema.Finite);
+    const isolated = yield* automationWindow.automation.evaluate(
+      "[document.title, typeof window.sewedPageMarker]",
+      Schema.Array(Schema.String),
+      { world: 1000 },
+    );
+    assert.deepEqual(isolated, ["Sewed automation page", "undefined"], "the DOM is shared, the page's state is not");
 
     const readField = () =>
       automationWindow.automation.evaluate('document.getElementById("field").value', Schema.String);
