@@ -98,13 +98,17 @@ const run = Effect.gen(function* () {
     assert.ok(terminal.frames >= chunks);
     assert.ok(terminal.wireBytes > bytes, "wire totals include binary framing");
     assert.ok(progress.length < chunks / 2, "progress is sampled rather than retained per frame");
-    assert.ok(
-      events(completed, "RequestEnded").some(
-        (event) =>
-          event.requestId === request.requestId &&
-          event.ownerId === worker.id &&
-          event.outcome === "success",
-      ),
+    // The end of the request is reported after its last transfer sample, so wait for it too.
+    yield* until(
+      snapshot,
+      (value) =>
+        events(value, "RequestEnded").some(
+          (event) =>
+            event.requestId === request.requestId &&
+            event.ownerId === worker.id &&
+            event.outcome === "success",
+        ),
+      "the binary stream's request ended",
     );
     record(
       "headless snapshot samples and joins real worker binary traffic to its completed request",

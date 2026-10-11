@@ -56,6 +56,9 @@ try {
   // Task 1 (fully-on-sewed wave 1), ruling 2: App.showErrorBox prints to stderr and returns at
   // once before readiness, with or without a display -- the pre-readiness print is the
   // process-observed fact this checks, not a claim the fixture makes about itself.
+  // Before readiness Electron prints an error box on Linux and shows a blocking system dialog on
+  // macOS and Windows, which nothing here could dismiss.
+  if (process.platform === "linux")
   await verifyNative({
     fixture: "scripts/app-error-box-fixture.mjs",
     artifact: "app-error-box",
@@ -64,7 +67,9 @@ try {
     expectedExitCode: 0,
     stderrPatterns: [/Sewed error box/, /before readiness/],
   });
-  console.log("PASS App.showErrorBox prints its title and content to stderr before readiness");
+  if (process.platform === "linux")
+    console.log("PASS App.showErrorBox prints its title and content to stderr before readiness");
+  else console.log("SKIP App.showErrorBox before readiness: a blocking system dialog on this platform");
 } finally {
   await rm(logsRoot, { recursive: true, force: true });
 }

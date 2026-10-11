@@ -43,6 +43,10 @@ jobs:
       - run: pnpm check
       - run: pnpm build
       - run: pnpm verify:all
+        env:
+          # Chromium's hung-renderer detector does not fire on the hosted macOS runner, as it does
+          # not under a bare Linux display; the fixture's own gate skips the two stall checks.
+          SEWED_SKIP_CRASH_CHECKS: ${{ matrix.os == 'macos-latest' && '1' || '' }}
       - name: Keep the Electron logs
         if: always()
         uses: actions/upload-artifact@v4

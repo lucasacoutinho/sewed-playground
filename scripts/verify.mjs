@@ -648,9 +648,10 @@ try {
     pass("guest-policy", "a navigation outside the pattern policy fails with Protocol at the boundary");
 
     let bytes = 0;
-    for (let attempt = 0; attempt < 5 && bytes === 0; attempt++) {
+    // A capture can come back empty until the guest has painted; hosted runners paint late.
+    for (let attempt = 0; attempt < 20 && bytes === 0; attempt++) {
       await first.click(guest.controls.capture);
-      await delay(400);
+      await delay(500);
       bytes = Number((await first.attribute(guest.observations.captured, "data-guest-capture-bytes")) ?? 0);
     }
     assert.ok(bytes > 0, "guest capture returned bytes");

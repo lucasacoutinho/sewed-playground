@@ -296,12 +296,16 @@ try {
 } catch (error) {
   recentPathError = error;
 }
-assert.ok(recentPathError, 'App.defaultPath("recent") was expected to throw before readiness');
-assert.equal(recentPathError._tag, "SewedError");
-assert.equal(recentPathError.code, "Native");
+// Windows is the one platform with a "recent" directory, so there the read answers a path.
+if (process.platform === "win32") assert.equal(recentPathError, undefined);
+else {
+  assert.ok(recentPathError, 'App.defaultPath("recent") was expected to throw before readiness');
+  assert.equal(recentPathError._tag, "SewedError");
+  assert.equal(recentPathError.code, "Native");
+}
 record('App.defaultPath("recent") throws Native before readiness, on this platform', {
-  code: recentPathError.code,
-  message: recentPathError.message,
+  code: recentPathError?.code ?? null,
+  message: recentPathError?.message ?? null,
 });
 
 // `App.run` is called synchronously, in this module's own first pass, with no `await` anywhere

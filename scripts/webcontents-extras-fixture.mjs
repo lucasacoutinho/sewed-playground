@@ -478,7 +478,7 @@ const runChecks = (origin) =>
     const missingLoad = yield* Effect.exit(web.load(missingDoc, { bindings: [] }));
     const missingError = expectCode(missingLoad, "Protocol");
     assert.ok(
-      missingError.message.includes("documents/missing.html"),
+      /documents[\\/]missing\.html/.test(missingError.message),
       `expected the missing path in the message: ${missingError.message}`,
     );
     assert.equal(

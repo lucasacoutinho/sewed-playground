@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, isAbsolute } from "node:path";
 
 import { app, BrowserWindow as NativeBrowserWindow } from "electron";
 import { Cause, Deferred, Effect, Fiber, Scope, Stream } from "effect";
@@ -38,9 +38,13 @@ const { App, BrowserWindow, Declaration, Paths } = await import("sewed/main");
 const { Decidables, Decision } = await import("sewed");
 const pathDirectory = mkdtempSync(join(tmpdir(), "sewed-invalid-path-"));
 const relativeTarget = join(pathDirectory, "unexpected");
+// A relative spelling of that target where one exists; on Windows the temp directory can sit on
+// another drive, where `relative` can only answer an absolute path, so a plain relative name
+// stands in for it there.
+const relativeSpelling = relative(process.cwd(), relativeTarget);
 const pathDefinition = Declaration.definition(
   Paths.declare({
-    sessionData: relative(process.cwd(), relativeTarget),
+    sessionData: isAbsolute(relativeSpelling) ? "sewed-unexpected-relative" : relativeSpelling,
   }),
 );
 assert.ok(pathDefinition);
