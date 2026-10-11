@@ -316,6 +316,18 @@ const runChecks = (origin) =>
       assert.equal(yield* web.caretBrowsing, true);
       yield* web.setCaretBrowsing(false);
       expectCode(yield* Effect.exit(web.addDevToolsWorkspace("relative")), "Protocol");
+      assert.equal(yield* web.opener, null);
+      assert.equal(yield* web.hostId, null);
+      assert.equal(yield* web.devToolsContentsId, null);
+      const focusedFrame = yield* web.focusedFrame;
+      assert.ok(focusedFrame === null || typeof focusedFrame.routingId === "number");
+      assert.equal(yield* web.zoomMode, native.getZoomMode());
+      yield* web.setZoomLevel(1);
+      assert.equal(native.getZoomLevel(), 1);
+      assert.equal(yield* web.zoomLevel, 1);
+      yield* web.setZoomLevel(0);
+      expectCode(yield* Effect.exit(web.setZoomLevel(40)), "Protocol");
+      expectCode(yield* Effect.exit(web.setZoomMode("page")), "Protocol");
       expectCode(yield* Effect.exit(web.edit("destroy")), "Protocol");
       expectCode(
         yield* Effect.exit(web.startDrag({ files: ["relative.txt"], icon: "/tmp/none.png" })),
@@ -637,6 +649,7 @@ const runChecks = (origin) =>
     const downloadDetails = yield* saved.values[0].details;
     assert.equal(downloadDetails.savePath, join(downloadDirectory, "report.pdf"));
     assert.ok(downloadDetails.startTime > 0, "a start time");
+    assert.equal(typeof downloadDetails.initiatorOrigin, "string");
     const bytes = yield* Effect.promise(() => readFile(join(downloadDirectory, "report.pdf")));
     assert.equal(bytes.subarray(0, 4).toString("latin1"), "%PDF");
     // The offer says how the download came about: its redirect chain and whether a user asked.

@@ -240,8 +240,28 @@ const runChecks = (origin) =>
         assert.equal(typeof opened.shouldReEncrypt, "boolean");
       }
       expectCode(yield* Effect.exit(App.importCertificate({ certificate: "relative.p12", password: Redacted.make("x") })), "Protocol");
+      const inventory = yield* App.windows;
+      const own = inventory.find((entry) => entry.id === window.id);
+      assert.ok(own, "the Sewed window is listed under its own id");
+      assert.equal(typeof own.nativeId, "number");
+      const pages = yield* App.allWebContents;
+      assert.ok(pages.some((entry) => entry.id !== null), "an owned web contents is listed by owner id");
+      const focusedEntry = yield* App.focusedWindow;
+      assert.ok(focusedEntry === null || typeof focusedEntry.nativeId === "number");
+      const focusedPage = yield* App.focusedWebContents;
+      assert.ok(focusedPage === null || typeof focusedPage.nativeId === "number");
+      assert.equal(yield* window.parentId, null);
+      assert.deepEqual(yield* window.childIds, []);
+      const dataUrl = yield* Image.toDataUrl(iconBitmap);
+      assert.ok(dataUrl.startsWith("data:image/png;base64,"));
+      const roundTrip = yield* Image.fromDataUrl(dataUrl);
+      assert.deepEqual([roundTrip.width, roundTrip.height], [2, 2]);
+      assert.equal(Image.aspectRatio(roundTrip), 1);
+      expectCode(yield* Effect.exit(Image.fromDataUrl("not a data url")), "Protocol");
       record("host resolver, fallback agent, command line, shortcut suspension, and point conversion answer natively", {
         fileIcon: iconExit._tag,
+        windows: inventory.length,
+        webContents: pages.length,
         asyncStorage,
         dip,
       });
