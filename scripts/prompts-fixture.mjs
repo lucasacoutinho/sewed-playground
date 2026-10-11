@@ -60,7 +60,12 @@ const runChecks = (server) =>
           window.dialog.message({ message: `Sewed prompt ${attempt}`, buttons: ["Cancel", "Continue"] }),
         );
         yield* Effect.sleep(600);
-        assert.equal(shown.pollUnsafe(), undefined, "the dialog is still open, waiting for an answer");
+        const early = shown.pollUnsafe();
+        assert.equal(
+          early,
+          undefined,
+          `the dialog is still open, waiting for an answer; it had settled with ${early === undefined ? "" : early._tag === "Success" ? JSON.stringify(early.value) : Cause.pretty(early.cause)}`,
+        );
         yield* Fiber.interrupt(shown);
       }
       // The window can show another dialog afterwards: nothing was left pending.
