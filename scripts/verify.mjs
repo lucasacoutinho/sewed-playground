@@ -657,16 +657,15 @@ try {
     // The library's guest capture is verified with real pixels by verify:guest on every platform.
     // This one goes through the app's own guest pane, which comes back as an empty image on the
     // hosted Windows and macOS runners; there it is reported and not claimed.
-    if (bytes === 0 && process.platform !== "linux")
-      pass(
-        "guest-capture",
-        "NOT CLAIMED on this runner: the app's guest pane captured an empty image (guest capture itself is verified by verify:guest)",
-        { bytes, platform: process.platform },
-      );
-    else {
-      assert.ok(bytes > 0, "guest capture returned bytes");
-      pass("guest-capture", "capture through the host policy returns PNG bytes", { bytes });
-    }
+    const unclaimed = bytes === 0 && process.platform !== "linux";
+    if (!unclaimed) assert.ok(bytes > 0, "guest capture returned bytes");
+    pass(
+      "guest-capture",
+      unclaimed
+        ? "NOT CLAIMED on this runner: the app's guest pane captured an empty image (guest capture itself is verified by verify:guest)"
+        : "capture through the host policy returns PNG bytes",
+      { bytes, platform: process.platform },
+    );
   }
 
   await first.click(featureMap.features.desktop.navigation);
