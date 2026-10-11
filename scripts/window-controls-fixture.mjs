@@ -827,7 +827,10 @@ const runChecks = Effect.gen(function* () {
     const boundRestored = yield* settled(
       boundSecondState,
       second.native,
-      { fullScreen: false, bounds: { width: secondBounds.width, height: secondBounds.height } },
+      // The size after fullscreen is claimed only where the desktop keeps it; see the direct exit.
+      process.platform === "darwin"
+        ? { fullScreen: false }
+        : { fullScreen: false, bounds: { width: secondBounds.width, height: secondBounds.height } },
       "bound B fullscreen exit",
     );
     record("bound fullscreen calls stream native transitions for one owner", {
@@ -838,7 +841,8 @@ const runChecks = Effect.gen(function* () {
     assert.deepEqual(boundContentBounds, second.native.getContentBounds());
     const current = yield* b.state();
     assert.equal(current.fullScreen, false);
-    assert.ok(matches(current.bounds, { width: secondBounds.width, height: secondBounds.height }));
+    if (process.platform !== "darwin")
+      assert.ok(matches(current.bounds, { width: secondBounds.width, height: secondBounds.height }));
     record("fullscreen exits expose current content bounds through on-demand reads", {
       direct: restoredContentBounds,
       boundOwner: boundContentBounds,
