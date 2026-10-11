@@ -325,6 +325,17 @@ const runChecks = (origin) =>
       yield* offscreen.webContents.setPainting(false);
       assert.equal((yield* offscreen.webContents.painting).painting, false);
       yield* Fiber.interrupt(painted.fiber);
+      yield* offscreen.webContents.load(entry(new URL("/two", origin)), { bindings: [] });
+      const historyBefore = (yield* offscreen.webContents.current).history;
+      assert.ok(historyBefore.entries.length >= 2, JSON.stringify(historyBefore));
+      expectCode(
+        yield* Effect.exit(offscreen.webContents.removeHistoryEntry(historyBefore.index)),
+        "Protocol",
+      );
+      expectCode(yield* Effect.exit(offscreen.webContents.removeHistoryEntry(99)), "Protocol");
+      yield* offscreen.webContents.removeHistoryEntry(0);
+      const historyAfter = (yield* offscreen.webContents.current).history;
+      assert.equal(historyAfter.entries.length, historyBefore.entries.length - 1);
       yield* Scope.close(offscreenScope, Exit.void);
       assert.equal((yield* web.painting).offscreen, false);
       record("an offscreen window paints frames as bitmaps and obeys its painting controls", {
@@ -332,6 +343,7 @@ const runChecks = (origin) =>
         height: frame.bitmap.height,
         dirty: frame.dirty,
         frameRate: painting.frameRate,
+        historyEntries: [historyBefore.entries.length, historyAfter.entries.length],
       });
     }
 

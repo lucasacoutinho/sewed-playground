@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@sewed/forge':
-        specifier: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-forge-0.0.0-prototype.50.tgz
-        version: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-forge-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)(sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))
+        specifier: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-forge-0.0.0-prototype.50.tgz
+        version: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-forge-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)(sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))
       '@sewed/react':
-        specifier: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-react-0.0.0-prototype.50.tgz
-        version: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-react-0.0.0-prototype.50.tgz(effect@4.0.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))
+        specifier: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-react-0.0.0-prototype.50.tgz
+        version: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-react-0.0.0-prototype.50.tgz(effect@4.0.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))
       '@tanstack/react-router':
         specifier: 1.170.34
         version: 1.170.34(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -27,15 +27,15 @@ importers:
         specifier: 19.3.0
         version: 19.3.0(react@19.3.0)
       sewed:
-        specifier: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz
-        version: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
+        specifier: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz
+        version: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
     devDependencies:
       '@sewed/devtools':
-        specifier: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-devtools-0.0.0-prototype.50.tgz
-        version: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-devtools-0.0.0-prototype.50.tgz(@sewed/vite@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)))(effect@4.0.2)(sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))
+        specifier: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-devtools-0.0.0-prototype.50.tgz
+        version: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-devtools-0.0.0-prototype.50.tgz(@sewed/vite@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)))(effect@4.0.2)(sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))
       '@sewed/vite':
-        specifier: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz
-        version: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))
+        specifier: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz
+        version: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))
       '@tanstack/router-plugin':
         specifier: 1.168.37
         version: 1.168.37(@tanstack/react-router@1.170.34(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(esbuild@0.28.2)(rolldown@1.2.13)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))
@@ -570,8 +570,8 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@sewed/devtools@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-devtools-0.0.0-prototype.50.tgz':
-    resolution: {integrity: sha512-JHMXlYNgvyGCMcDTleFvBOXA+tddcLYoLFJ+deAn8v8Xii94neIHVJDpy7yQtj8aPCWsYQvWJ+XlgZbB8/0k6Q==, tarball: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-devtools-0.0.0-prototype.50.tgz}
+  '@sewed/devtools@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-devtools-0.0.0-prototype.50.tgz':
+    resolution: {integrity: sha512-JHMXlYNgvyGCMcDTleFvBOXA+tddcLYoLFJ+deAn8v8Xii94neIHVJDpy7yQtj8aPCWsYQvWJ+XlgZbB8/0k6Q==, tarball: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-devtools-0.0.0-prototype.50.tgz}
     version: 0.0.0-prototype.50
     peerDependencies:
       '@sewed/vite': 0.0.0-prototype.50
@@ -581,16 +581,16 @@ packages:
       '@sewed/vite':
         optional: true
 
-  '@sewed/forge@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-forge-0.0.0-prototype.50.tgz':
-    resolution: {integrity: sha512-61H0/nAbJFooD/rAQ2SJZUV/XkhZkREpKa0JoTADU85v5VH/o4QbC/zgGTTDI/2osh0TuXZmnhT9qNhqFql9RQ==, tarball: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-forge-0.0.0-prototype.50.tgz}
+  '@sewed/forge@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-forge-0.0.0-prototype.50.tgz':
+    resolution: {integrity: sha512-61H0/nAbJFooD/rAQ2SJZUV/XkhZkREpKa0JoTADU85v5VH/o4QbC/zgGTTDI/2osh0TuXZmnhT9qNhqFql9RQ==, tarball: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-forge-0.0.0-prototype.50.tgz}
     version: 0.0.0-prototype.50
     peerDependencies:
       effect: 4.0.2
       electron: '>=44'
       sewed: 0.0.0-prototype.50
 
-  '@sewed/react@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-react-0.0.0-prototype.50.tgz':
-    resolution: {integrity: sha512-cWogv2DiaWg9muowZBAGnaxT8LkTk+g9rbKC98OibGaN4S2oCrTE/caSZLFWpMD8ewDCtoYxMPW0A4kFxi9BRw==, tarball: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-react-0.0.0-prototype.50.tgz}
+  '@sewed/react@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-react-0.0.0-prototype.50.tgz':
+    resolution: {integrity: sha512-cWogv2DiaWg9muowZBAGnaxT8LkTk+g9rbKC98OibGaN4S2oCrTE/caSZLFWpMD8ewDCtoYxMPW0A4kFxi9BRw==, tarball: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-react-0.0.0-prototype.50.tgz}
     version: 0.0.0-prototype.50
     peerDependencies:
       effect: 4.0.2
@@ -598,8 +598,8 @@ packages:
       react-dom: ^19.2.0
       sewed: 0.0.0-prototype.50
 
-  '@sewed/vite@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz':
-    resolution: {integrity: sha512-nxghXWLraXy+4hjL2vgbDYRBO6Lp3H3fr21MXotsgNB3rmKsXij/eAP3M7IiArFE31lScmqim0fijfN9zZbn5g==, tarball: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz}
+  '@sewed/vite@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz':
+    resolution: {integrity: sha512-nxghXWLraXy+4hjL2vgbDYRBO6Lp3H3fr21MXotsgNB3rmKsXij/eAP3M7IiArFE31lScmqim0fijfN9zZbn5g==, tarball: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz}
     version: 0.0.0-prototype.50
     peerDependencies:
       electron: '>=41 <45'
@@ -1100,8 +1100,8 @@ packages:
     resolution: {integrity: sha512-AeDcLh0yO2SFm9W71essgnSzLV9DI8ZH0x0knXn2DMnUZj728mpLbxjlbB6IqKCmqh8JA3cEqRyGoNkt584JcQ==}
     engines: {node: '>=10'}
 
-  sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz:
-    resolution: {integrity: sha512-LZxVyLt7mSuqdLmyvLKrP4SrKACpNdflullnHu9ajBmz4nC/aqM7tze7EhR2LZ+CHbQ8PaFLsDYViQCoHJstnQ==, tarball: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz}
+  sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz:
+    resolution: {integrity: sha512-wKD6rQw171pBJ9OC1fTRlOtUMEUSsIjLExvI+vLnnEqHmBT3KlA5v30iP6XfKrtMMq1SVb9mfuy8iqVZKQfXfw==, tarball: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz}
     version: 0.0.0-prototype.50
     peerDependencies:
       effect: 4.0.2
@@ -1570,27 +1570,27 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@sewed/devtools@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-devtools-0.0.0-prototype.50.tgz(@sewed/vite@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)))(effect@4.0.2)(sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))':
+  '@sewed/devtools@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-devtools-0.0.0-prototype.50.tgz(@sewed/vite@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)))(effect@4.0.2)(sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))':
     dependencies:
       effect: 4.0.2
-      sewed: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
+      sewed: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
     optionalDependencies:
-      '@sewed/vite': file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))
+      '@sewed/vite': file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))
 
-  '@sewed/forge@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-forge-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)(sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))':
+  '@sewed/forge@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-forge-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)(sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))':
     dependencies:
       effect: 4.0.2
       electron: 44.7.0
-      sewed: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
+      sewed: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
 
-  '@sewed/react@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-react-0.0.0-prototype.50.tgz(effect@4.0.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))':
+  '@sewed/react@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-react-0.0.0-prototype.50.tgz(effect@4.0.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0))':
     dependencies:
       effect: 4.0.2
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      sewed: file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
+      sewed: file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0)
 
-  '@sewed/vite@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))':
+  '@sewed/vite@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-vite-0.0.0-prototype.50.tgz(electron@44.7.0)(vite@8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0))':
     optionalDependencies:
       electron: 44.7.0
       vite: 8.3.4(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)
@@ -2025,7 +2025,7 @@ snapshots:
 
   seroval@1.6.7: {}
 
-  sewed@file:../sewed/.artifacts/gaps2-b84e1c0f/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0):
+  sewed@file:../sewed/.artifacts/gaps2-42eb2c51/sewed-0.0.0-prototype.50.tgz(effect@4.0.2)(electron@44.7.0):
     dependencies:
       effect: 4.0.2
       msgpackr: 2.1.0
