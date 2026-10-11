@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { app, BrowserWindow as NativeBrowserWindow, session as nativeSession } from "electron";
 import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
 import { Decidables, Decision, Renderer } from "sewed";
-import { App, BaseWindow, BrowserWindow, Image, Net, Protocol, Session, Tray, WebContentsView } from "sewed/main";
+import { App, BaseWindow, BrowserWindow, Clipboard, Image, Net, Protocol, Session, Tray, View, WebContentsView } from "sewed/main";
 
 const checks = [];
 const served = [];
@@ -397,6 +397,100 @@ const runChecks = (server) =>
       record("an allowed webview is an owned handle with a guest's gates, and closes with its element", {
         blockedInside: guestBlocked.map((entry) => new URL(entry.url).pathname),
       });
+
+      // A window's own menu bar is the same owned menu the application's is.
+      const barWindow = yield* BrowserWindow.make({ show: false, title: "Sewed bar" });
+      const barScope = yield* Scope.fork(yield* Effect.scope);
+      const barOptions = {
+        items: [{ kind: "submenu", label: "Tools", items: [{ kind: "command", id: "sync", label: "Sync" }] }],
+      };
+      const bar = yield* barWindow.setMenu(barOptions).pipe(Scope.provide(barScope));
+      assert.equal((yield* bar.item("sync")).label, "Sync");
+      yield* bar.update("sync", { label: "Sync now", enabled: false });
+      assert.deepEqual(
+        (({ label, enabled }) => ({ label, enabled }))(yield* bar.item("sync")),
+        { label: "Sync now", enabled: false },
+      );
+      assert.equal(errorOf(yield* Effect.exit(barWindow.setMenu(barOptions).pipe(Scope.provide(barScope)))).code, "Limit");
+      yield* Scope.close(barScope, Exit.void);
+      assert.equal(errorOf(yield* Effect.exit(bar.item("sync"))).code, "Closed");
+      const barAgain = yield* Scope.fork(yield* Effect.scope);
+      yield* barWindow.setMenu(barOptions).pipe(Scope.provide(barAgain));
+      yield* Scope.close(barAgain, Exit.void);
+      assert.equal(errorOf(yield* Effect.exit(App.dock.menu({ items: [{ kind: "command", id: "a", label: "A" }] }))).code, "Native");
+      yield* barWindow.blur;
+      record("a window's menu bar is an owned menu of its own");
+
+      // A window's root is a container the program owns, for a scope.
+      const nativeBar = NativeBrowserWindow.getAllWindows().find((each) => each.getTitle() === "Sewed bar");
+      assert.ok(nativeBar, "the native bar window");
+      const ownRoot = nativeBar.contentView;
+      const rootScope = yield* Scope.fork(yield* Effect.scope);
+      const container = yield* View.make({ backgroundColor: "#102030" });
+      assert.equal(yield* barWindow.contentViewId, null);
+      yield* barWindow.setContentView(container).pipe(Scope.provide(rootScope));
+      assert.notEqual(nativeBar.contentView, ownRoot, "the root was replaced natively");
+      assert.equal(yield* barWindow.contentViewId, container.id);
+      const inRoot = yield* WebContentsView.make({});
+      yield* barWindow.attach(inRoot, { bounds: { x: 0, y: 0, width: 50, height: 50 } });
+      assert.equal(nativeBar.contentView.children.length, 1, "a view attached meanwhile sits in the owned root");
+      assert.equal(errorOf(yield* Effect.exit(barWindow.setContentView(inRoot))).code, "Protocol");
+      yield* Scope.close(rootScope, Exit.void);
+      assert.equal(nativeBar.contentView, ownRoot, "the window's own root returned");
+      assert.equal(yield* barWindow.contentViewId, null);
+      record("a container view is a window's root for a scope, and the original returns");
+
+      // A view over a clone of another view's web contents, with a lifetime of its own.
+      const firstScope = yield* Scope.fork(yield* Effect.scope);
+      const first = yield* WebContentsView.make({}).pipe(Scope.provide(firstScope));
+      yield* barWindow.attach(first, { bounds: { x: 0, y: 0, width: 200, height: 200 } });
+      yield* first.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
+      const cloneScope = yield* Scope.fork(yield* Effect.scope);
+      const twin = yield* WebContentsView.make({ cloneOf: first }).pipe(Scope.provide(cloneScope));
+      const survivor = yield* WebContentsView.make({ cloneOf: first });
+      assert.notEqual(twin.id, first.id);
+      const listed = (yield* App.allWebContents).filter((entry) => [first.id, twin.id].includes(entry.id));
+      assert.equal(new Set(listed.map((entry) => entry.nativeId)).size, 2, "two web contents");
+      assert.equal(listed.find((entry) => entry.id === twin.id).url, `${origin}/`, "the clone carries the history");
+      assert.equal(yield* twin.webContents.rendererProcessId, yield* first.webContents.rendererProcessId);
+      assert.equal(errorOf(yield* Effect.exit(WebContentsView.make({ cloneOf: first, backgroundThrottling: false }))).code, "Protocol");
+      yield* Scope.close(cloneScope, Exit.void);
+      assert.ok((yield* first.webContents.userAgent).length > 0, "the original outlives its clone");
+
+      // One frame of a page is addressed, and a frame or DevTools target leads to its handle.
+      const [mainFrame] = yield* first.webContents.frameTree;
+      assert.equal(mainFrame.top, mainFrame.routingId);
+      assert.equal(mainFrame.detached, false);
+      const addressed = first.webContents.frame(mainFrame);
+      assert.equal((yield* addressed.info).url, `${origin}/`);
+      assert.equal(errorOf(yield* Effect.exit(first.webContents.frame({ processId: 1, routingId: 987654 }).info)).code, "Protocol");
+      const byFrame = yield* App.webContentsOf({ kind: "frame", processId: mainFrame.processId, routingId: mainFrame.routingId });
+      assert.equal(byFrame, yield* App.webContents(first.id), "a frame leads to its owner's handle");
+      const byToken = yield* App.webContentsOf({ kind: "frame-token", processId: mainFrame.processId, token: mainFrame.token });
+      assert.equal(byToken, byFrame);
+      const byTarget = yield* App.webContentsOf({ kind: "devtools-target", id: yield* first.webContents.devToolsTargetId });
+      assert.equal(byTarget, byFrame);
+      assert.equal(yield* App.webContentsOf({ kind: "frame", processId: 1, routingId: 987654 }), null);
+      assert.equal(errorOf(yield* Effect.exit(App.webContentsOf({ kind: "frame" }))).code, "Protocol");
+      yield* addressed.reload;
+      yield* Scope.close(firstScope, Exit.void);
+      assert.ok((yield* survivor.webContents.userAgent).length > 0, "a clone outlives its original");
+      yield* survivor.close;
+      record("a view clones another's web contents, and frames are addressed and lead to their handle");
+
+      // Connections opened ahead of use, and a bitmap cropped as data.
+      const before = served.length;
+      yield* Session.preconnect(yield* Session.defaultSession, { url: origin, numSockets: 2 });
+      assert.equal(errorOf(yield* Effect.exit(Session.preconnect(yield* Session.defaultSession, { url: "file:///etc" }))).code, "Protocol");
+      assert.equal(served.length, before, "a preconnect sends no request");
+      const cropped = Image.crop({ width: 2, height: 2, bytes: new Uint8Array(16).map((_, index) => index) }, { x: 1, y: 1, width: 1, height: 1 });
+      assert.deepEqual([...cropped.bytes], [12, 13, 14, 15]);
+      // The primary selection is a clipboard of its own on Linux.
+      yield* Clipboard.selection.write({ kind: "text", text: "sewed selection" });
+      assert.deepEqual(yield* Clipboard.selection.read("text"), { kind: "text", text: "sewed selection" });
+      assert.ok((yield* Clipboard.selection.formats).includes("text"));
+      assert.equal(errorOf(yield* Effect.exit(Clipboard.selection.read("nonsense"))).code, "Protocol");
+      record("preconnect, crop and the primary selection");
 
       // A scheme served straight from a directory, with no handler.
       const root = mkdtempSync(join(tmpdir(), "sewed-routes-"));

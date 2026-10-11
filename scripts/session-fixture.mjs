@@ -192,6 +192,7 @@ const runChecks = Effect.gen(function* () {
     "fromPath",
     "isProtocolHandled",
     "loadExtension",
+    "preconnect",
     "preloadScripts",
     "registerPreloadScript",
     "removeSpellCheckerWord",
