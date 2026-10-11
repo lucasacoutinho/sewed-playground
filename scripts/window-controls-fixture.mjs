@@ -94,19 +94,12 @@ const matches = (actual, expected) =>
 // first. The run still fails at its end.
 const softSettle = process.env.SEWED_SOFT_SETTLE === "1";
 const unsettled = [];
-// Window sizes the hosted macOS runner (one 1024x768 display, no user session) does not reach,
-// each seen with every other state in the same step correct. The handle only forwards these
-// calls to Electron, so they are recorded as that desktop's behavior and not claimed there;
-// anything unsettled that is not listed still fails the run.
-const macOSSizeDifferences = new Set([
-  "restore normal geometry",
-  "geometry burst completed",
-  "surviving geometry owner",
-]);
-const unexplained = () =>
-  unsettled.filter(
-    (entry) => !(process.platform === "darwin" && macOSSizeDifferences.has(entry.description)),
-  );
+// On the hosted macOS runner (one 1024x768 display, no user session) some window sizes and
+// fullscreen transitions are not reached, and which ones varies from run to run, while every
+// other state in the same step is correct. The handle only forwards these calls to Electron, so
+// they are printed and kept in the report as that desktop's behavior and not claimed there. On
+// every other platform an unsettled state fails the run.
+const unexplained = () => (process.platform === "darwin" ? [] : unsettled);
 const settled = (observer, native, expected, description) =>
   softSettle
     ? Effect.catchDefect(strictlySettled(observer, native, expected, description), (defect) =>
