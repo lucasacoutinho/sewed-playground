@@ -52,17 +52,17 @@
     "check": "pnpm check:architecture && pnpm typecheck && pnpm test:architecture"
   },
   "dependencies": {
-    "@sewed/react": "file:../sewed/.artifacts/fc-c295a13a/sewed-react-0.0.0-prototype.50.tgz",
+    "@sewed/react": "file:../sewed/.artifacts/fc-e3c06ba8/sewed-react-0.0.0-prototype.50.tgz",
     "@tanstack/react-router": "1.170.34",
     "effect": "4.0.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sewed": "file:../sewed/.artifacts/fc-c295a13a/sewed-0.0.0-prototype.50.tgz",
-    "@sewed/forge": "file:../sewed/.artifacts/fc-c295a13a/sewed-forge-0.0.0-prototype.50.tgz"
+    "sewed": "file:../sewed/.artifacts/fc-e3c06ba8/sewed-0.0.0-prototype.50.tgz",
+    "@sewed/forge": "file:../sewed/.artifacts/fc-e3c06ba8/sewed-forge-0.0.0-prototype.50.tgz"
   },
   "devDependencies": {
-    "@sewed/devtools": "file:../sewed/.artifacts/fc-c295a13a/sewed-devtools-0.0.0-prototype.50.tgz",
-    "@sewed/vite": "file:../sewed/.artifacts/fc-c295a13a/sewed-vite-0.0.0-prototype.50.tgz",
+    "@sewed/devtools": "file:../sewed/.artifacts/fc-e3c06ba8/sewed-devtools-0.0.0-prototype.50.tgz",
+    "@sewed/vite": "file:../sewed/.artifacts/fc-e3c06ba8/sewed-vite-0.0.0-prototype.50.tgz",
     "@tanstack/router-plugin": "1.168.37",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
