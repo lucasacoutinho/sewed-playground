@@ -7,8 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow as NativeBrowserWindow, session as nativeSession } from "electron";
 import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
-import { Decidables, Decision } from "sewed";
-import { App, BrowserWindow, Image, Net, Protocol, Session, Tray } from "sewed/main";
+import { Decidables, Decision, Renderer } from "sewed";
+import { App, BrowserWindow, Image, Native, Net, Protocol, Session, Tray } from "sewed/main";
 
 const checks = [];
 const record = (name, evidence = {}) => {
@@ -26,7 +26,14 @@ const errorOf = (exit) => {
 // text frames of up to 125 bytes, which is all this fixture sends.
 const echoServer = () =>
   new Promise((resolve) => {
-    const server = createServer();
+    const server = createServer((request, response) => {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(
+        request.url === "/inner"
+          ? "<!doctype html><title>Sewed inner</title><p>inner</p>"
+          : "<!doctype html><title>Sewed parity</title><p>parity</p>",
+      );
+    });
     server.on("upgrade", (request, socket) => {
       const accept = createHash("sha1")
         .update(`${request.headers["sec-websocket-key"]}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
@@ -211,6 +218,133 @@ const runChecks = (server) =>
       const unreachable = yield* Effect.exit(Effect.scoped(Net.webSocket("ws://127.0.0.1:9/")));
       assert.equal(errorOf(unreachable).code, "Native");
       record("a WebSocket opens through Chromium, echoes a message, and closes with its scope");
+
+      // The native bridge: Electron's own object behind a handle, for one function.
+      const origin = `http://127.0.0.1:${address.port}`;
+      assert.equal(yield* Native.window(window, (each) => each.getTitle()), "Sewed prompts");
+      assert.equal(
+        yield* Native.window(window, async (each) => each.getContentView().constructor.name.length > 0),
+        true,
+      );
+      assert.equal(typeof (yield* Native.session(yield* Session.defaultSession, (each) => each.getUserAgent())), "string");
+      assert.equal(
+        errorOf(yield* Effect.exit(Native.window(window, () => { throw new Error("boom"); }))).code,
+        "Native",
+      );
+      assert.equal(errorOf(yield* Effect.exit(Native.window({ id: "not-a-window" }, () => 1))).code, "Protocol");
+      const goneScope = yield* Scope.fork(yield* Effect.scope);
+      const gone = yield* BrowserWindow.make({ show: false, title: "Sewed gone" }).pipe(Scope.provide(goneScope));
+      yield* Scope.close(goneScope, Exit.void);
+      assert.equal(errorOf(yield* Effect.exit(Native.window(gone, (each) => each.getTitle()))).code, "Closed");
+      record("the native bridge reaches the object behind a handle and keeps typed failures at its edge");
+
+      // An installed menu item is read and changed in place.
+      const editScope = yield* Scope.fork(yield* Effect.scope);
+      const editable = yield* App.menu({
+        items: [
+          {
+            kind: "submenu",
+            label: "Sewed",
+            items: [
+              { kind: "command", id: "save", label: "Save" },
+              { kind: "checkbox", id: "wrap", label: "Wrap", checked: false },
+            ],
+          },
+        ],
+      }).pipe(Scope.provide(editScope));
+      assert.deepEqual(yield* editable.item("save"), { id: "save", label: "Save", enabled: true, visible: true, checked: false });
+      yield* editable.update("save", { label: "Save all", enabled: false });
+      yield* editable.update("wrap", { checked: true });
+      assert.deepEqual(yield* editable.item("save"), { id: "save", label: "Save all", enabled: false, visible: true, checked: false });
+      assert.equal((yield* editable.item("wrap")).checked, true);
+      assert.equal(errorOf(yield* Effect.exit(editable.item("missing"))).code, "Protocol");
+      assert.equal(errorOf(yield* Effect.exit(editable.update("save", { label: "" }))).code, "Protocol");
+      yield* Scope.close(editScope, Exit.void);
+      record("an installed menu item is read and updated in place");
+
+      // Raw IPC with a page that carries its own preload.
+      const ipcSession = yield* Session.fromPartition({ kind: "memory", name: `ipc-${process.pid}` });
+      const preload = join(mkdtempSync(join(tmpdir(), "sewed-ipc-")), "preload.js");
+      writeFileSync(
+        preload,
+        `const { ipcRenderer } = require("electron");
+ipcRenderer.on("reply", (_event, value) => ipcRenderer.send("got", value));
+window.addEventListener("DOMContentLoaded", () => {
+  ipcRenderer.send("hello", { n: 1 }, "text");
+  ipcRenderer.send("answered", ipcRenderer.sendSync("ask", "question"));
+});
+`,
+      );
+      yield* Session.registerPreloadScript(ipcSession, { type: "frame", filePath: preload });
+      const ipcWindow = yield* BrowserWindow.make({ show: false, session: ipcSession, title: "Sewed ipc" });
+      const ipcReceived = [];
+      const listening = yield* ipcWindow.webContents.ipc.messages.pipe(
+        Stream.runForEach((message) => Effect.sync(() => ipcReceived.push(message))),
+        Effect.forkChild,
+      );
+      yield* ipcWindow.webContents.ipc.answerSync((message) => ({ heard: message.args[0] }));
+      yield* Effect.sleep(50);
+      yield* ipcWindow.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
+      const waitFor = (channel) =>
+        Effect.gen(function* () {
+          const deadline = Date.now() + 8_000;
+          for (;;) {
+            const found = ipcReceived.find((message) => message.channel === channel);
+            if (found !== undefined) return found;
+            assert.ok(Date.now() < deadline, `no "${channel}" message arrived: ${JSON.stringify(ipcReceived)}`);
+            yield* Effect.sleep(20);
+          }
+        });
+      const hello = yield* waitFor("hello");
+      assert.deepEqual(hello.args, [{ n: 1 }, "text"]);
+      assert.equal(hello.frame.isMainFrame, true);
+      assert.deepEqual((yield* waitFor("answered")).args, [{ heard: "question" }]);
+      yield* ipcWindow.webContents.ipc.send("reply", "pong");
+      assert.deepEqual((yield* waitFor("got")).args, ["pong"]);
+      yield* Fiber.interrupt(listening);
+      record("raw IPC reaches main from a page's own preload, is answered synchronously, and is sent back");
+
+      // A webview is denied without a decider and attaches, locked down, when one allows it.
+      const webviewWindow = yield* BrowserWindow.make({ show: false, webviewTag: true, title: "Sewed webview" });
+      const pageEvents = [];
+      const watching = yield* webviewWindow.webContents.events.pipe(
+        Stream.runForEach((event) => Effect.sync(() => pageEvents.push(event))),
+        Effect.forkChild,
+      );
+      const blockedAttachments = [];
+      const blockedWatch = yield* webviewWindow.webContents.blocked.pipe(
+        Stream.runForEach((entry) => Effect.sync(() => blockedAttachments.push(entry))),
+        Effect.forkChild,
+      );
+      yield* Effect.sleep(50);
+      yield* webviewWindow.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
+      const nativeWebview = NativeBrowserWindow.getAllWindows().find((each) => each.getTitle() === "Sewed parity" || each.getTitle() === "Sewed webview");
+      const attach = () =>
+        Effect.promise(() =>
+          nativeWebview.webContents.executeJavaScript(
+            `(() => { const view = document.createElement("webview"); view.src = ${JSON.stringify(`${origin}/inner`)}; document.body.append(view); })()`,
+          ),
+        );
+      yield* attach();
+      const deadlineDenied = Date.now() + 8_000;
+      while (!blockedAttachments.some((entry) => entry.kind === "webview")) {
+        assert.ok(Date.now() < deadlineDenied, "the undecided webview was not reported as blocked");
+        yield* Effect.sleep(20);
+      }
+      assert.equal(pageEvents.some((event) => event.kind === "webview-attached"), false);
+      yield* webviewWindow.webContents.decide(
+        Decidables.WebContents.WebviewAttach,
+        Decision.sync((event) => (event.src.endsWith("/inner") ? "allow" : "deny")),
+      );
+      yield* attach();
+      const deadlineAllowed = Date.now() + 8_000;
+      while (!pageEvents.some((event) => event.kind === "webview-attached")) {
+        assert.ok(Date.now() < deadlineAllowed, "the allowed webview never attached");
+        yield* Effect.sleep(20);
+      }
+      yield* Fiber.interrupt(watching);
+      yield* Fiber.interrupt(blockedWatch);
+      record("a webview is denied without a decider and attaches once one allows it");
 
       // A scheme served straight from a directory, with no handler.
       const root = mkdtempSync(join(tmpdir(), "sewed-routes-"));
