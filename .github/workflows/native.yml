@@ -52,3 +52,4 @@ jobs:
             sewed-playground/.artifacts/*-electron.log
             sewed-playground/.artifacts/*-verification.json
           if-no-files-found: ignore
+          include-hidden-files: true

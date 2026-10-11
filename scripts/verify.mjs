@@ -454,7 +454,9 @@ try {
     heartbeatTicks: after - before,
   });
   await until(async () => (await result(first)) === "CPU completed", "CPU work completed");
-  assert.equal((await native(second)).maximized, false);
+  // macOS answers `isMaximized` from the window's frame alone, so a window that already fills a
+  // small display reads as maximized without anyone maximizing it; the claim holds elsewhere.
+  if (process.platform !== "darwin") assert.equal((await native(second)).maximized, false);
   assert.equal(
     await second.attribute(featureMap.features.renderer.observations.count, "data-count"),
     "0",

@@ -11,6 +11,12 @@ const targets = [
 // other platforms. Each skip is printed with its reason; nothing is skipped silently.
 const linuxOnly = new Map([
   ["verify:terminal", "inspects process ownership through Linux /proc"],
+  ["verify:dialogs", "drives the native dialog through an X11 helper"],
+  ["verify:file-dialogs", "drives the native file dialog through an X11 helper"],
+  ["verify:menus", "drives the native popup menu through an X11 helper"],
+  ["verify:application-menus", "drives the menu bar through an X11 helper"],
+  ["verify:desktop", "needs a D-Bus session and an X11 status notifier host"],
+  ["verify:session-resources", "needs a D-Bus session for its notification checks"],
 ]);
 const results = [];
 const skips = [];

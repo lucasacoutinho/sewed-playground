@@ -16,7 +16,12 @@ const commands = [
 
 const run = (command, args) =>
   new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: root, stdio: "inherit" });
+    const child = spawn(command, args, {
+      cwd: root,
+      stdio: "inherit",
+      // pnpm is a .cmd shim on Windows, which only a shell can run.
+      shell: process.platform === "win32",
+    });
     child.once("error", reject);
     child.once("close", (code) => resolve(code ?? 1));
   });

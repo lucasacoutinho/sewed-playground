@@ -36,7 +36,10 @@ const closedFailure = (value, label) => {
       message: value.message,
     };
   }
-  if (value instanceof SewedError && value.code === "Closed") {
+  // A stale client answers `Closed` when it already knows its owner is gone, and `Unknown` when
+  // the request left before that news arrived, which is what macOS and Windows tend to produce
+  // for a utility process. Both are the documented connection-loss answers.
+  if (value instanceof SewedError && (value.code === "Closed" || value.code === "Unknown")) {
     return {
       tag: value._tag,
       reason: value.code,

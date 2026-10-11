@@ -205,9 +205,17 @@ const runChecks = (origin) =>
       assert.equal(yield* GlobalShortcut.suspended, true);
       yield* GlobalShortcut.setSuspended(false);
       assert.equal(yield* GlobalShortcut.suspended, false);
-      const dip = yield* Screen.screenToDipPoint({ x: 10, y: 10 });
-      assert.equal(typeof dip.x, "number");
-      assert.equal(typeof (yield* Screen.dipToScreenPoint(dip)).y, "number");
+      // Electron converts points on Linux and Windows; macOS has one coordinate space.
+      const dipExit = yield* Effect.exit(Screen.screenToDipPoint({ x: 10, y: 10 }));
+      let dip = null;
+      if (process.platform === "darwin") expectCode(dipExit, "Native");
+      else {
+        assert.equal(dipExit._tag, "Success");
+        dip = dipExit.value;
+        assert.equal(typeof dip.x, "number");
+        assert.equal(typeof (yield* Screen.dipToScreenPoint(dip)).y, "number");
+      }
+      expectCode(yield* Effect.exit(Screen.screenToDipPoint({ x: "a", y: 1 })), "Protocol");
       yield* Effect.scoped(
         App.decide(
           Decidables.App.ClientCertificate,

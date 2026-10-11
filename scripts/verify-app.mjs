@@ -54,10 +54,14 @@ try {
 // Task 4, ruling 7 (App.preferredSystemLanguages is synchronous and read before readiness): a
 // declaration thunk reads it under a forced `LANGUAGE=fr` environment and declares `--lang=fr`;
 // the fixture then asserts the value reached a live renderer's own `navigator.language`.
-await verifyNative({
-  fixture: "scripts/app-languages-fixture.mjs",
-  artifact: "app-languages",
-  marker: "APP_LANGUAGES_VERIFICATION",
-  electronArgs: ["--ozone-platform=x11"],
-  env: { LANGUAGE: "fr" },
-});
+// `LANGUAGE` is how Linux is told the user's languages; macOS and Windows read them from system
+// settings a test cannot set, so the check runs on Linux alone.
+if (process.platform === "linux")
+  await verifyNative({
+    fixture: "scripts/app-languages-fixture.mjs",
+    artifact: "app-languages",
+    marker: "APP_LANGUAGES_VERIFICATION",
+    electronArgs: ["--ozone-platform=x11"],
+    env: { LANGUAGE: "fr" },
+  });
+else console.log("SKIP app-languages: the OS language cannot be forced from the environment here");
