@@ -16,6 +16,7 @@
     "verify:operations": "node scripts/verify-operations.mjs",
     "verify:platform": "node scripts/verify-platform.mjs",
     "verify:prompts": "node scripts/verify-prompts.mjs",
+    "verify:hardware": "node scripts/verify-hardware.mjs",
     "verify:forge": "node scripts/verify-forge.mjs",
     "verify:windows": "node scripts/verify-windows.mjs",
     "verify:screen": "node scripts/verify-screen.mjs",
@@ -52,17 +53,17 @@
     "check": "pnpm check:architecture && pnpm typecheck && pnpm test:architecture"
   },
   "dependencies": {
-    "@sewed/react": "file:../sewed/.artifacts/main-3779cb0c/sewed-react-0.0.0-prototype.50.tgz",
+    "@sewed/react": "file:../sewed/.artifacts/main-a2ac6755/sewed-react-0.0.0-prototype.50.tgz",
     "@tanstack/react-router": "1.170.34",
     "effect": "4.0.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sewed": "file:../sewed/.artifacts/main-3779cb0c/sewed-0.0.0-prototype.50.tgz",
-    "@sewed/forge": "file:../sewed/.artifacts/main-3779cb0c/sewed-forge-0.0.0-prototype.50.tgz"
+    "sewed": "file:../sewed/.artifacts/main-a2ac6755/sewed-0.0.0-prototype.50.tgz",
+    "@sewed/forge": "file:../sewed/.artifacts/main-a2ac6755/sewed-forge-0.0.0-prototype.50.tgz"
   },
   "devDependencies": {
-    "@sewed/devtools": "file:../sewed/.artifacts/main-3779cb0c/sewed-devtools-0.0.0-prototype.50.tgz",
-    "@sewed/vite": "file:../sewed/.artifacts/main-3779cb0c/sewed-vite-0.0.0-prototype.50.tgz",
+    "@sewed/devtools": "file:../sewed/.artifacts/main-a2ac6755/sewed-devtools-0.0.0-prototype.50.tgz",
+    "@sewed/vite": "file:../sewed/.artifacts/main-a2ac6755/sewed-vite-0.0.0-prototype.50.tgz",
     "@tanstack/router-plugin": "1.168.37",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
