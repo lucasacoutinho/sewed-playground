@@ -303,6 +303,38 @@ const runChecks = (origin) =>
       });
     }
 
+    {
+      const offscreenScope = yield* Scope.fork(yield* Effect.scope);
+      const offscreen = yield* BrowserWindow.make({
+        show: false,
+        offscreen: true,
+        width: 200,
+        height: 120,
+      }).pipe(Scope.provide(offscreenScope));
+      const painted = yield* observe(offscreen.webContents.frames());
+      yield* offscreen.webContents.load(entry(new URL("/one", origin)), { bindings: [] });
+      yield* offscreen.webContents.setFrameRate(30);
+      expectCode(yield* Effect.exit(offscreen.webContents.setFrameRate(0)), "Protocol");
+      yield* offscreen.webContents.invalidate;
+      const frame = yield* waitUntil(() => painted.values.at(-1), "an offscreen frame");
+      assert.equal(frame.bitmap.bytes.byteLength, frame.bitmap.width * frame.bitmap.height * 4);
+      assert.ok(frame.bitmap.width >= 200 && frame.bitmap.height >= 120, JSON.stringify([frame.bitmap.width, frame.bitmap.height]));
+      const painting = yield* offscreen.webContents.painting;
+      assert.equal(painting.offscreen, true);
+      assert.equal(painting.frameRate, 30);
+      yield* offscreen.webContents.setPainting(false);
+      assert.equal((yield* offscreen.webContents.painting).painting, false);
+      yield* Fiber.interrupt(painted.fiber);
+      yield* Scope.close(offscreenScope, Exit.void);
+      assert.equal((yield* web.painting).offscreen, false);
+      record("an offscreen window paints frames as bitmaps and obeys its painting controls", {
+        width: frame.bitmap.width,
+        height: frame.bitmap.height,
+        dirty: frame.dirty,
+        frameRate: painting.frameRate,
+      });
+    }
+
     const searchScope = yield* Scope.fork(yield* Effect.scope);
     const search = yield* web.find("needle").pipe(Scope.provide(searchScope));
     const results = yield* observe(search.results);

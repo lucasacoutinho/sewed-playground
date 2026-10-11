@@ -546,6 +546,36 @@ const runChecks = Effect.gen(function* () {
       everywhere,
       bounds: first.native.getBounds(),
     });
+    yield* first.handle.setContentSize({ width: 420, height: 310 });
+    const [contentWidth, contentHeight] = first.native.getContentSize();
+    assert.deepEqual([contentWidth, contentHeight], [420, 310]);
+    const content = yield* first.handle.contentBounds;
+    yield* first.handle.setContentBounds({ ...content, width: 430 });
+    assert.equal(first.native.getContentSize()[0], 430);
+    expectCode(yield* Effect.exit(first.handle.setContentBounds({ width: 1, height: 1 })), "Protocol");
+    yield* first.handle.setAccessibleTitle("Sewed accessible");
+    assert.equal(yield* first.handle.accessibleTitle, "Sewed accessible");
+    assert.equal(yield* first.handle.shadow, first.native.hasShadow());
+    yield* first.handle.setHasShadow(first.native.hasShadow());
+    assert.equal(yield* first.handle.normal, first.native.isNormal());
+    assert.equal(yield* first.handle.menuBarAutoHide, first.native.isMenuBarAutoHide());
+    const nativeHandle = yield* first.handle.nativeHandle;
+    assert.ok(nativeHandle instanceof Uint8Array && nativeHandle.byteLength > 0, "native handle bytes");
+    yield* first.handle.moveAbove(yield* first.handle.mediaSourceId);
+    expectCode(yield* Effect.exit(first.handle.moveAbove("")), "Protocol");
+    yield* first.handle.removeMenu;
+    const windowEvents = yield* first.handle.events.pipe(
+      Stream.runForEach(() => Effect.void),
+      Effect.forkScoped,
+    );
+    yield* Effect.sleep(20);
+    assert.ok(first.native.listenerCount("app-command") > 0, "events listen while observed");
+    yield* Fiber.interrupt(windowEvents);
+    assert.equal(first.native.listenerCount("app-command"), 0, "events release with the observer");
+    record("content geometry, accessibility, handle, and event members reach the native window", {
+      content: first.native.getContentSize(),
+      handleBytes: nativeHandle.byteLength,
+    });
     record("appearance commands publish native state and reject values outside Electron's ranges", {
       title: first.native.getTitle(),
       alwaysOnTop: first.native.isAlwaysOnTop(),

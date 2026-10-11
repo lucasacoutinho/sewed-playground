@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { app, BrowserWindow as NativeBrowserWindow } from "electron";
 import { Cause, Effect, Fiber, Redacted, Stream } from "effect";
 import { Certificate, Decidables, Decision, Navigation, Renderer } from "sewed";
-import { App, BrowserWindow, CommandLine, Image, Paths } from "sewed/main";
+import { App, BrowserWindow, CommandLine, GlobalShortcut, Image, Paths, Screen } from "sewed/main";
 
 const checks = [];
 const record = (name, evidence = {}) => {
@@ -184,6 +184,39 @@ const runChecks = (origin) =>
       yield* window.setIcon(pngBytes);
       record("a window's setIcon accepts already-encoded bytes, over Image.Source", {
         bytes: pngBytes.length,
+      });
+
+      yield* App.configureHostResolver({ secureDnsMode: "off" });
+      expectCode(yield* Effect.exit(App.configureHostResolver({ secureDnsMode: "always" })), "Protocol");
+      const fallbackAgent = yield* App.userAgentFallback;
+      yield* App.setUserAgentFallback(`${fallbackAgent} SewedApp/1`);
+      assert.ok((yield* App.userAgentFallback).endsWith("SewedApp/1"));
+      yield* App.setUserAgentFallback(fallbackAgent);
+      assert.equal(typeof (yield* App.applicationNameForProtocol("https://example.com")), "string");
+      expectCode(yield* Effect.exit(App.applicationNameForProtocol("not a url")), "Protocol");
+      expectCode(yield* Effect.exit(App.fileIcon("relative.txt")), "Protocol");
+      const iconExit = yield* Effect.exit(App.fileIcon(process.execPath, "small"));
+      if (iconExit._tag === "Success") assert.ok(iconExit.value instanceof Uint8Array);
+      else expectCode(iconExit, "Native");
+      assert.equal(yield* CommandLine.has("sewed-no-such-switch"), false);
+      assert.equal(yield* CommandLine.value("sewed-no-such-switch"), "");
+      expectCode(yield* Effect.exit(CommandLine.has("--bad name")), "Protocol");
+      yield* GlobalShortcut.setSuspended(true);
+      assert.equal(yield* GlobalShortcut.suspended, true);
+      yield* GlobalShortcut.setSuspended(false);
+      assert.equal(yield* GlobalShortcut.suspended, false);
+      const dip = yield* Screen.screenToDipPoint({ x: 10, y: 10 });
+      assert.equal(typeof dip.x, "number");
+      assert.equal(typeof (yield* Screen.dipToScreenPoint(dip)).y, "number");
+      yield* Effect.scoped(
+        App.decide(
+          Decidables.App.ClientCertificate,
+          Decision.async(() => Effect.succeed({ kind: "none" })),
+        ),
+      );
+      record("host resolver, fallback agent, command line, shortcut suspension, and point conversion answer natively", {
+        fileIcon: iconExit._tag,
+        dip,
       });
 
       yield* App.decide(
