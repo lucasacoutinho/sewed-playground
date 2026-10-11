@@ -8,9 +8,10 @@ import { join } from "node:path";
 import { app, BrowserWindow as NativeBrowserWindow, session as nativeSession } from "electron";
 import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
 import { Decidables, Decision, Renderer } from "sewed";
-import { App, BrowserWindow, Image, Native, Net, Protocol, Session, Tray } from "sewed/main";
+import { App, BaseWindow, BrowserWindow, Image, Net, Protocol, Session, Tray, WebContentsView } from "sewed/main";
 
 const checks = [];
+const served = [];
 const record = (name, evidence = {}) => {
   checks.push({ name, evidence: structuredClone(evidence) });
   console.log(`PASS ${name}`);
@@ -27,6 +28,7 @@ const errorOf = (exit) => {
 const echoServer = () =>
   new Promise((resolve) => {
     const server = createServer((request, response) => {
+      served.push(request.url);
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end(
         request.url === "/inner"
@@ -219,24 +221,7 @@ const runChecks = (server) =>
       assert.equal(errorOf(unreachable).code, "Native");
       record("a WebSocket opens through Chromium, echoes a message, and closes with its scope");
 
-      // The native bridge: Electron's own object behind a handle, for one function.
       const origin = `http://127.0.0.1:${address.port}`;
-      assert.equal(yield* Native.window(window, (each) => each.getTitle()), "Sewed prompts");
-      assert.equal(
-        yield* Native.window(window, async (each) => each.getContentView().constructor.name.length > 0),
-        true,
-      );
-      assert.equal(typeof (yield* Native.session(yield* Session.defaultSession, (each) => each.getUserAgent())), "string");
-      assert.equal(
-        errorOf(yield* Effect.exit(Native.window(window, () => { throw new Error("boom"); }))).code,
-        "Native",
-      );
-      assert.equal(errorOf(yield* Effect.exit(Native.window({ id: "not-a-window" }, () => 1))).code, "Protocol");
-      const goneScope = yield* Scope.fork(yield* Effect.scope);
-      const gone = yield* BrowserWindow.make({ show: false, title: "Sewed gone" }).pipe(Scope.provide(goneScope));
-      yield* Scope.close(goneScope, Exit.void);
-      assert.equal(errorOf(yield* Effect.exit(Native.window(gone, (each) => each.getTitle()))).code, "Closed");
-      record("the native bridge reaches the object behind a handle and keeps typed failures at its edge");
 
       // An installed menu item is read and changed in place.
       const editScope = yield* Scope.fork(yield* Effect.scope);
@@ -262,89 +247,134 @@ const runChecks = (server) =>
       yield* Scope.close(editScope, Exit.void);
       record("an installed menu item is read and updated in place");
 
-      // Raw IPC with a page that carries its own preload.
-      const ipcSession = yield* Session.fromPartition({ kind: "memory", name: `ipc-${process.pid}` });
-      const preload = join(mkdtempSync(join(tmpdir(), "sewed-ipc-")), "preload.js");
-      writeFileSync(
-        preload,
-        `const { ipcRenderer } = require("electron");
-ipcRenderer.on("reply", (_event, value) => ipcRenderer.send("got", value));
-window.addEventListener("DOMContentLoaded", () => {
-  ipcRenderer.send("hello", { n: 1 }, "text");
-  ipcRenderer.send("answered", ipcRenderer.sendSync("ask", "question"));
-});
-`,
-      );
-      yield* Session.registerPreloadScript(ipcSession, { type: "frame", filePath: preload });
-      const ipcWindow = yield* BrowserWindow.make({ show: false, session: ipcSession, title: "Sewed ipc" });
-      const ipcReceived = [];
-      const listening = yield* ipcWindow.webContents.ipc.messages.pipe(
-        Stream.runForEach((message) => Effect.sync(() => ipcReceived.push(message))),
-        Effect.forkChild,
-      );
-      yield* ipcWindow.webContents.ipc.answerSync((message) => ({ heard: message.args[0] }));
-      yield* Effect.sleep(50);
-      yield* ipcWindow.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
-      const waitFor = (channel) =>
-        Effect.gen(function* () {
-          const deadline = Date.now() + 8_000;
-          for (;;) {
-            const found = ipcReceived.find((message) => message.channel === channel);
-            if (found !== undefined) return found;
-            assert.ok(Date.now() < deadline, `no "${channel}" message arrived: ${JSON.stringify(ipcReceived)}`);
-            yield* Effect.sleep(20);
-          }
-        });
-      const hello = yield* waitFor("hello");
-      assert.deepEqual(hello.args, [{ n: 1 }, "text"]);
-      assert.equal(hello.frame.isMainFrame, true);
-      assert.deepEqual((yield* waitFor("answered")).args, [{ heard: "question" }]);
-      yield* ipcWindow.webContents.ipc.send("reply", "pong");
-      assert.deepEqual((yield* waitFor("got")).args, ["pong"]);
-      yield* Fiber.interrupt(listening);
-      record("raw IPC reaches main from a page's own preload, is answered synchronously, and is sent back");
-
-      // A webview is denied without a decider and attaches, locked down, when one allows it.
+      // A webview is denied without a decider. Allowed, it arrives as an owned handle with a
+      // guest's gates, and it closes when its element goes.
       const webviewWindow = yield* BrowserWindow.make({ show: false, webviewTag: true, title: "Sewed webview" });
-      const pageEvents = [];
-      const watching = yield* webviewWindow.webContents.events.pipe(
-        Stream.runForEach((event) => Effect.sync(() => pageEvents.push(event))),
+      const owned = [];
+      const owning = yield* webviewWindow.webContents.webviews.pipe(
+        Stream.runForEach((handle) => Effect.sync(() => owned.push(handle))),
         Effect.forkChild,
       );
-      const blockedAttachments = [];
-      const blockedWatch = yield* webviewWindow.webContents.blocked.pipe(
-        Stream.runForEach((entry) => Effect.sync(() => blockedAttachments.push(entry))),
+      const hostBlocked = [];
+      const hostWatch = yield* webviewWindow.webContents.blocked.pipe(
+        Stream.runForEach((entry) => Effect.sync(() => hostBlocked.push(entry))),
         Effect.forkChild,
       );
       yield* Effect.sleep(50);
       yield* webviewWindow.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
-      const nativeWebview = NativeBrowserWindow.getAllWindows().find((each) => each.getTitle() === "Sewed parity" || each.getTitle() === "Sewed webview");
+      const hostNative = NativeBrowserWindow.getAllWindows().find((each) => each.webContents.getURL() === `${origin}/`);
+      assert.ok(hostNative, "the native host window");
+      const inPage = (script) => Effect.promise(() => hostNative.webContents.executeJavaScript(script));
       const attach = () =>
-        Effect.promise(() =>
-          nativeWebview.webContents.executeJavaScript(
-            `(() => { const view = document.createElement("webview"); view.src = ${JSON.stringify(`${origin}/inner`)}; document.body.append(view); })()`,
-          ),
+        inPage(
+          `(() => { const view = document.createElement("webview"); view.id = "inner"; view.src = ${JSON.stringify(`${origin}/inner`)}; document.body.append(view); })()`,
         );
+      const waitFor = (read, description) =>
+        Effect.gen(function* () {
+          const deadline = Date.now() + 8_000;
+          for (;;) {
+            const value = read();
+            if (value) return value;
+            assert.ok(Date.now() < deadline, `Timed out: ${description}`);
+            yield* Effect.sleep(20);
+          }
+        });
       yield* attach();
-      const deadlineDenied = Date.now() + 8_000;
-      while (!blockedAttachments.some((entry) => entry.kind === "webview")) {
-        assert.ok(Date.now() < deadlineDenied, "the undecided webview was not reported as blocked");
-        yield* Effect.sleep(20);
-      }
-      assert.equal(pageEvents.some((event) => event.kind === "webview-attached"), false);
+      yield* waitFor(() => hostBlocked.some((entry) => entry.kind === "webview"), "the undecided webview reported as blocked");
+      assert.equal(owned.length, 0, "a denied webview is never owned");
+      yield* inPage(`document.getElementById("inner").remove()`);
       yield* webviewWindow.webContents.decide(
         Decidables.WebContents.WebviewAttach,
         Decision.sync((event) => (event.src.endsWith("/inner") ? "allow" : "deny")),
       );
       yield* attach();
-      const deadlineAllowed = Date.now() + 8_000;
-      while (!pageEvents.some((event) => event.kind === "webview-attached")) {
-        assert.ok(Date.now() < deadlineAllowed, "the allowed webview never attached");
+      const webview = yield* waitFor(() => owned[0], "the allowed webview arriving as a handle");
+      assert.equal(typeof webview.id, "string");
+      assert.equal(webview.hostId, webviewWindow.id);
+      assert.ok((yield* webview.webContents.userAgent).length > 0, "an owned operation reaches the webview");
+      // It is listed like any other owned web contents, under its own id.
+      assert.ok((yield* App.allWebContents).some((entry) => entry.id === webview.id), "listed under its Sewed id");
+      // Its own navigation is gated like a guest's: denied without a decider on its handle.
+      const guestBlocked = [];
+      const guestWatch = yield* webview.blocked.pipe(
+        Stream.runForEach((entry) => Effect.sync(() => guestBlocked.push(entry))),
+        Effect.forkChild,
+      );
+      yield* Effect.sleep(50);
+      yield* inPage(`document.getElementById("inner").executeJavaScript(${JSON.stringify(`location.href = "${origin}/elsewhere"`)})`);
+      yield* waitFor(() => guestBlocked.some((entry) => entry.kind === "navigation"), "the webview's own navigation denied");
+      // The host page pointing the element elsewhere is a load nothing can prevent beforehand:
+      // it is stopped before its document commits and reported, until the handle's decider allows it.
+      const urlOfInner = () => inPage(`document.getElementById("inner").getURL()`);
+      yield* inPage(`document.getElementById("inner").src = ${JSON.stringify(`${origin}/moved`)}`);
+      yield* waitFor(() => guestBlocked.some((entry) => entry.url.endsWith("/moved")), "the host-directed load stopped");
+      yield* Effect.sleep(500);
+      assert.equal(yield* urlOfInner(), `${origin}/inner`, "the webview stayed where it was");
+      assert.equal(yield* inPage(`document.getElementById("inner").executeJavaScript("document.title")`), "Sewed inner");
+      yield* webview.webContents.decide(
+        Decidables.WebContents.Navigation,
+        Decision.sync((event) => (event.url.endsWith("/granted") ? "allow" : "deny")),
+      );
+      yield* inPage(`document.getElementById("inner").src = ${JSON.stringify(`${origin}/granted`)}`);
+      yield* waitFor(() => served.includes("/granted"), "the allowed host-directed load served");
+      for (let attempt = 0; attempt < 200 && (yield* urlOfInner()) !== `${origin}/granted`; attempt++)
+        yield* Effect.sleep(20);
+      assert.equal(yield* urlOfInner(), `${origin}/granted`);
+      // A handle is found by its Sewed id: the very object its owner holds, not a second one.
+      assert.equal(yield* App.window(webviewWindow.id), webviewWindow, "the window found by id");
+      const foundHost = yield* App.webContents(webview.hostId);
+      assert.ok(foundHost !== null, "the host's web contents found by id");
+      assert.ok((yield* foundHost.userAgent).length > 0);
+      const foundGuest = yield* App.webContents(webview.id);
+      assert.equal(foundGuest, webview.webContents, "the webview's web contents found by id");
+      const plain = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const base = yield* BaseWindow.make({ show: false });
+          assert.equal(yield* App.window(base.id), base, "a base window found by id");
+          return base;
+        }),
+      );
+      assert.equal(yield* App.window(plain.id), null, "a window is not found once its scope closed");
+      assert.equal(yield* App.window("no-such-id"), null);
+      assert.equal(errorOf(yield* Effect.exit(App.window(7))).code, "Protocol");
+      // Removing the element ends it: the handle closes and refuses further work.
+      yield* inPage(`document.getElementById("inner").remove()`);
+      const closed = yield* webview.awaitClosed.pipe(Effect.timeoutOption("8 seconds"));
+      assert.equal(closed._tag, "Some", "the handle closed with its element");
+      assert.equal(errorOf(yield* Effect.exit(webview.webContents.userAgent)).code, "Closed");
+      assert.equal(yield* App.webContents(webview.id), null, "a closed webview is no longer found");
+      // DevTools hosted in a view the program owns and places.
+      const toolsView = yield* WebContentsView.make({});
+      yield* webviewWindow.attach(toolsView, { bounds: { x: 0, y: 0, width: 400, height: 300 } });
+      yield* webviewWindow.webContents.openDevToolsIn(toolsView, { activate: false });
+      for (let attempt = 0; attempt < 400 && !(yield* webviewWindow.webContents.devTools).opened; attempt++)
+        yield* Effect.sleep(20);
+      assert.equal((yield* webviewWindow.webContents.devTools).opened, true, "DevTools opened");
+      const toolsEntry = (yield* App.allWebContents).find((entry) => entry.id === toolsView.id);
+      assert.ok(toolsEntry, "the hosting view is listed under its Sewed id");
+      for (let attempt = 0; attempt < 400; attempt++) {
+        const listed = (yield* App.allWebContents).find((entry) => entry.id === toolsView.id);
+        if (listed?.url.startsWith("devtools://")) break;
         yield* Effect.sleep(20);
       }
-      yield* Fiber.interrupt(watching);
-      yield* Fiber.interrupt(blockedWatch);
-      record("a webview is denied without a decider and attaches once one allows it");
+      const hosted = (yield* App.allWebContents).find((entry) => entry.id === toolsView.id);
+      assert.ok(hosted.url.startsWith("devtools://"), `DevTools live in the owned view: ${hosted.url}`);
+      assert.equal(yield* webviewWindow.webContents.devToolsContentsId, hosted.nativeId);
+      // A view that has loaded something cannot host them.
+      assert.equal(errorOf(yield* Effect.exit(webviewWindow.webContents.openDevToolsIn(toolsView))).code, "Protocol");
+      // They last as long as the view: closing it closes them.
+      yield* toolsView.close;
+      for (let attempt = 0; attempt < 400 && (yield* webviewWindow.webContents.devTools).opened; attempt++)
+        yield* Effect.sleep(20);
+      assert.equal((yield* webviewWindow.webContents.devTools).opened, false, "DevTools closed with their view");
+      assert.equal(yield* App.webContents(toolsView.id), null, "a closed view's web contents is no longer found");
+      record("handles are found by id, and DevTools open inside an owned view", { hosted: hosted.url.slice(0, 40) });
+      yield* Fiber.interrupt(owning);
+      yield* Fiber.interrupt(hostWatch);
+      yield* Fiber.interrupt(guestWatch);
+      record("an allowed webview is an owned handle with a guest's gates, and closes with its element", {
+        blockedInside: guestBlocked.map((entry) => new URL(entry.url).pathname),
+      });
 
       // A scheme served straight from a directory, with no handler.
       const root = mkdtempSync(join(tmpdir(), "sewed-routes-"));
