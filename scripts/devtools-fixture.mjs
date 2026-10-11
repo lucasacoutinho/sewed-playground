@@ -218,12 +218,21 @@ const run = Effect.gen(function* () {
 
   const healthy = yield* inspectSnapshot((snapshot) => {
     const runtimeIds = new Set(snapshot.health.runtimes.map((sample) => sample.runtimeId));
+    // The queue sample is taken on its own tick, so wait for it with the runtime samples instead
+    // of hoping the first complete set of runtimes already carries it.
     return ["main", owners.worker.id, owners.utility.id, rendererRuntimeId].every((id) =>
       runtimeIds.has(id),
-    )
+    ) &&
+      snapshot.health.queues.some(
+        (sample) =>
+          sample.runtimeId === owners.worker.id &&
+          sample.runtime === "worker" &&
+          sample.kind === "rpc-server" &&
+          (sample.activeRequests ?? 0) >= 1,
+      )
       ? snapshot
       : false;
-  }, "health samples for all runtime identities");
+  }, "health samples for all runtime identities and the worker's server queue");
   const healthByRuntime = new Map(
     healthy.health.runtimes.map((sample) => [sample.runtimeId, sample]),
   );
