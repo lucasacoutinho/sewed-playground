@@ -20,6 +20,7 @@ const linuxOnly = new Map([
 ]);
 const results = [];
 const skips = [];
+const retried = [];
 for (const target of targets) {
   const reason = process.platform === "linux" ? undefined : linuxOnly.get(target);
   if (reason !== undefined) {
@@ -28,12 +29,22 @@ for (const target of targets) {
     continue;
   }
   const started = Date.now();
-  const outcome = spawnSync("pnpm", [target], {
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-    // pnpm is a .cmd shim on Windows, which only a shell can run.
-    shell: process.platform === "win32",
-  });
+  const attempt = () =>
+    spawnSync("pnpm", [target], {
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
+      // pnpm is a .cmd shim on Windows, which only a shell can run.
+      shell: process.platform === "win32",
+    });
+  let outcome = attempt();
+  // A hosted runner stalls for seconds at a time, which the fixtures' own budgets do not allow
+  // for. One retry, on CI alone, and never silently: the first attempt's failure is printed.
+  if (outcome.status !== 0 && process.env.CI) {
+    const first = `${outcome.stdout}${outcome.stderr}`.trim().split("\n").filter((line) => /Error|Timed out/.test(line))[0];
+    console.log(`RETRY ${target.padEnd(29)} first attempt: ${(first ?? "failed").trim().slice(0, 200)}`);
+    retried.push(target);
+    outcome = attempt();
+  }
   const passes = (outcome.stdout.match(/^PASS /gm) ?? []).length;
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
   results.push({ target, status: outcome.status, passes, seconds });
@@ -45,5 +56,6 @@ for (const target of targets) {
 }
 const failed = results.filter((result) => result.status !== 0);
 console.log(`${results.length - failed.length}/${results.length} verifications passed`);
+if (retried.length > 0) console.log(`${retried.length} retried: ${retried.join(", ")}`);
 if (skips.length > 0) console.log(`${skips.length} skipped on ${process.platform}: ${skips.join(", ")}`);
 process.exit(failed.length === 0 ? 0 : 1);

@@ -89,7 +89,23 @@ const matches = (actual, expected) =>
       : actual[key] === value,
   );
 
+// With SEWED_SOFT_SETTLE=1 a state that never settles is reported and the fixture carries on from
+// the native state, so one run on an unfamiliar desktop lists every difference instead of the
+// first. The run still fails at its end.
+const softSettle = process.env.SEWED_SOFT_SETTLE === "1";
+const unsettled = [];
 const settled = (observer, native, expected, description) =>
+  softSettle
+    ? Effect.catchDefect(strictlySettled(observer, native, expected, description), (defect) =>
+        Effect.sync(() => {
+          const text = typeof description === "function" ? description() : description;
+          unsettled.push({ description: text, expected, native: nativeState(native) });
+          console.log(`UNSETTLED ${text}: expected ${JSON.stringify(expected)}; ${String(defect).slice(0, 160)}`);
+          return nativeState(native);
+        }),
+      )
+    : strictlySettled(observer, native, expected, description);
+const strictlySettled = (observer, native, expected, description) =>
   waitUntil(
     () => {
       const actual = nativeState(native);
@@ -431,7 +447,11 @@ const runChecks = Effect.gen(function* () {
   const simpleFullScreen = yield* settled(
     firstState,
     first.native,
-    { simpleFullScreen: true, fullScreen: true },
+    // On macOS simple fullscreen is its own mode: the window fills the screen without becoming
+    // natively fullscreen, which is the point of it there.
+    process.platform === "darwin"
+      ? { simpleFullScreen: true, fullScreen: false }
+      : { simpleFullScreen: true, fullScreen: true },
     "simple fullscreen entry",
   );
   yield* first.handle.setSimpleFullScreen(false);
@@ -1253,7 +1273,8 @@ App.run(
     const result = yield* Effect.exit(runChecks);
     console.log(
       `WINDOW_CONTROLS_VERIFICATION ${JSON.stringify({
-        success: result._tag === "Success",
+        success: result._tag === "Success" && unsettled.length === 0,
+        unsettled,
         checks,
         error: result._tag === "Failure" ? Cause.pretty(result.cause) : undefined,
         platform: { os: process.platform, ozone: "x11" },
