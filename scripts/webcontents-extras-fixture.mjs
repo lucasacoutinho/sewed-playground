@@ -230,6 +230,79 @@ const runChecks = (origin) =>
       });
     }
 
+    {
+      const native = NativeBrowserWindow.getAllWindows()[0].webContents;
+      const pageEvents = yield* observe(web.events);
+      yield* Effect.sleep(50);
+      yield* Effect.promise(() =>
+        native.executeJavaScript(
+          `(() => { const meta = document.createElement("meta"); meta.name = "theme-color"; meta.content = "#123456"; document.head.append(meta); })()`,
+        ),
+      );
+      yield* waitUntil(
+        () => pageEvents.values.some((event) => event.kind === "theme-color" && event.color !== null),
+        "theme color event",
+      );
+      native.focus();
+      native.sendInputEvent({ type: "mouseDown", x: 12, y: 12, button: "right", clickCount: 1 });
+      native.sendInputEvent({ type: "mouseUp", x: 12, y: 12, button: "right", clickCount: 1 });
+      const menu = yield* waitUntil(
+        () => pageEvents.values.find((event) => event.kind === "context-menu"),
+        "context menu event",
+      );
+      assert.equal(menu.pageUrl, native.getURL());
+      assert.equal(typeof menu.editFlags.canCopy, "boolean");
+      const activity = yield* web.activity;
+      assert.equal(activity.crashed, false);
+      assert.equal(activity.loading, native.isLoading());
+      const devTools = yield* web.devTools;
+      assert.equal(devTools.opened, false);
+      yield* web.edit("selectAll");
+      const selected = yield* Effect.promise(() =>
+        native.executeJavaScript(`String(getSelection())`),
+      );
+      assert.ok(selected.length > 0, "selectAll selected the document");
+      yield* web.edit("unselect");
+      const widthBefore = yield* Effect.promise(() => native.executeJavaScript(`innerWidth`));
+      yield* web.enableDeviceEmulation({
+        screenPosition: "mobile",
+        screenSize: { width: 320, height: 480 },
+        viewPosition: { x: 0, y: 0 },
+        deviceScaleFactor: 2,
+        viewSize: { width: 320, height: 480 },
+        scale: 1,
+      });
+      const emulated = yield* Effect.gen(function* () {
+        let last;
+        const deadline = Date.now() + 8_000;
+        while (Date.now() < deadline) {
+          const seen = yield* Effect.promise(() =>
+            native.executeJavaScript(`({ inner: innerWidth, screen: screen.width, ratio: devicePixelRatio })`),
+          );
+          if (seen.inner === 320 || seen.screen === 320 || seen.ratio === 2) return seen;
+          last = seen;
+          yield* Effect.sleep(20);
+        }
+        throw new Error(`Timed out: emulated width ${JSON.stringify(last)}`);
+      });
+      yield* web.disableDeviceEmulation;
+      expectCode(yield* Effect.exit(web.edit("destroy")), "Protocol");
+      expectCode(yield* Effect.exit(web.takeHeapSnapshot("page.heapsnapshot")), "Protocol");
+      expectCode(
+        yield* Effect.exit(web.setVisualZoomLimits({ minimum: 3, maximum: 1 })),
+        "Protocol",
+      );
+      yield* web.setVisualZoomLimits({ minimum: 1, maximum: 3 });
+      yield* web.setImageAnimationPolicy("animate");
+      yield* Fiber.interrupt(pageEvents.fiber);
+      record("page events, activity, editing commands, and device emulation reach the native page", {
+        kinds: [...new Set(pageEvents.values.map((event) => event.kind))],
+        themeColor: pageEvents.values.find((event) => event.kind === "theme-color")?.color,
+        widthBefore,
+        emulated,
+      });
+    }
+
     const searchScope = yield* Scope.fork(yield* Effect.scope);
     const search = yield* web.find("needle").pipe(Scope.provide(searchScope));
     const results = yield* observe(search.results);

@@ -790,6 +790,40 @@ const runChecks = (origin) =>
       } else {
         expectCode(yield* Effect.exit(Session.addSpellCheckerWord(session, "sewedword")), "Native");
       }
+      // A separate session, so clearing everything here cannot disturb the checks around it.
+      const scratch = yield* Session.fromPartition({ kind: "memory", name: "data-clearing" });
+      const dictionaryKey = {
+        frameOrigin: "https://example.com",
+        topFrameSite: "https://example.com",
+      };
+      yield* Session.clearData(scratch, { dataTypes: ["cache", "cookies"] });
+      yield* Session.clearData(scratch, { origins: ["https://example.com"] });
+      yield* Session.clearData(scratch);
+      expectCode(
+        yield* Effect.exit(
+          Session.clearData(scratch, {
+            origins: ["https://example.com"],
+            excludeOrigins: ["https://example.org"],
+          }),
+        ),
+        "Protocol",
+      );
+      expectCode(yield* Effect.exit(Session.clearData(scratch, { dataTypes: ["history"] })), "Protocol");
+      assert.ok(Array.isArray(yield* Session.sharedDictionaryUsage(scratch)));
+      assert.ok(Array.isArray(yield* Session.sharedDictionaries(scratch, dictionaryKey)));
+      yield* Session.clearSharedDictionaries(scratch, dictionaryKey);
+      yield* Session.clearSharedDictionaries(scratch);
+      assert.deepEqual(yield* Session.extensions(scratch), []);
+      yield* Session.allowNtlmCredentialsForDomains(scratch, ["*.example.com", "intranet"]);
+      expectCode(yield* Effect.exit(Session.allowNtlmCredentialsForDomains(scratch, [])), "Protocol");
+      yield* Session.setSpellCheckerDictionaryDownloadUrl(scratch, "https://dictionaries.invalid/");
+      expectCode(
+        yield* Effect.exit(
+          Session.setSpellCheckerDictionaryDownloadUrl(scratch, "https://dictionaries.invalid/files"),
+        ),
+        "Protocol",
+      );
+      expectCode(yield* Effect.exit(Session.setCodeCachePath(scratch, "relative")), "Protocol");
       const agent = yield* Session.userAgent(session);
       yield* Session.setUserAgent(session, `${agent} SewedExtras/1`);
       assert.ok((yield* Session.userAgent(session)).endsWith("SewedExtras/1"));

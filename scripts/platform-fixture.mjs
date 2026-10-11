@@ -170,6 +170,71 @@ const runChecks = (origin) =>
         denied,
       });
 
+      // Device choosers: a real `requestDevice` reaches the session's decider with the devices the
+      // machine offers (none are required here), and a cancel is what the page receives.
+      const chooserScope = yield* Scope.fork(yield* Effect.scope);
+      const chooserRequests = { hid: [], usb: [], serial: [] };
+      yield* session
+        .decide(
+          Decidables.Session.Permission,
+          Decision.policy(Permission.Policy, [
+            { kind: "origin", origin: permissionOrigin, permissions: ["hid", "usb", "serial"] },
+          ]),
+        )
+        .pipe(Scope.provide(chooserScope));
+      const cancelling = (seen) =>
+        Decision.async((request) =>
+          Effect.sync(() => {
+            seen.push(request);
+            return { kind: "cancel" };
+          }),
+        );
+      yield* session
+        .decide(Decidables.Session.HidDevice, cancelling(chooserRequests.hid))
+        .pipe(Scope.provide(chooserScope));
+      yield* session
+        .decide(Decidables.Session.UsbDevice, cancelling(chooserRequests.usb))
+        .pipe(Scope.provide(chooserScope));
+      yield* session
+        .decide(Decidables.Session.SerialPort, cancelling(chooserRequests.serial))
+        .pipe(Scope.provide(chooserScope));
+      const settled = (expression) =>
+        Effect.promise(() =>
+          native.executeJavaScript(
+            `(${expression}).then((value) => ({ value: Array.isArray(value) ? value.length : String(value) })).catch((error) => ({ error: String(error && error.name) }))`,
+            true,
+          ),
+        );
+      const hidOutcome = yield* settled("navigator.hid.requestDevice({ filters: [] })");
+      const usbOutcome = yield* settled("navigator.usb.requestDevice({ filters: [] })");
+      const serialOutcome = yield* settled("navigator.serial.requestPort()");
+      for (const kind of ["hid", "usb", "serial"]) {
+        assert.equal(chooserRequests[kind].length, 1, `${kind} chooser asked once`);
+        assert.equal(chooserRequests[kind][0].origin, permissionOrigin, kind);
+        assert.equal(typeof chooserRequests[kind][0].document, "string", kind);
+      }
+      assert.ok(Array.isArray(chooserRequests.hid[0].devices), "hid devices");
+      assert.ok(Array.isArray(chooserRequests.usb[0].devices), "usb devices");
+      assert.ok(Array.isArray(chooserRequests.serial[0].ports), "serial ports");
+      assert.deepEqual(hidOutcome, { value: 0 }, "a cancelled HID request resolves empty");
+      assert.equal(usbOutcome.error, "NotFoundError", JSON.stringify(usbOutcome));
+      assert.equal(serialOutcome.error, "NotFoundError", JSON.stringify(serialOutcome));
+      yield* Scope.close(chooserScope, Exit.void);
+      yield* Session.setUsbProtectedClasses(session, ["hid"]);
+      yield* Session.setUsbProtectedClasses(session, null);
+      expectCode(
+        yield* Effect.exit(Session.setUsbProtectedClasses(session, ["printer"])),
+        "Protocol",
+      );
+      record("device choosers ask the session's deciders for real HID, USB and serial requests", {
+        hid: chooserRequests.hid[0].devices.length,
+        usb: chooserRequests.usb[0].devices.length,
+        serial: chooserRequests.serial[0].ports.length,
+        hidOutcome,
+        usbOutcome,
+        serialOutcome,
+      });
+
       const bar = {
         items: [
           { kind: "button", id: "save", label: "Save" },
