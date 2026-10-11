@@ -189,6 +189,8 @@ const runChecks = Effect.gen(function* () {
     "flushStorage",
     "forceReloadProxyConfig",
     "fromPartition",
+    "fromPath",
+    "isProtocolHandled",
     "loadExtension",
     "preloadScripts",
     "registerPreloadScript",

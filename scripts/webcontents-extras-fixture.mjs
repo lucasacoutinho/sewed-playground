@@ -286,6 +286,36 @@ const runChecks = (origin) =>
         throw new Error(`Timed out: emulated width ${JSON.stringify(last)}`);
       });
       yield* web.disableDeviceEmulation;
+      const tree = yield* web.frameTree;
+      assert.ok(tree.length >= 1 && tree[0].isMainFrame && tree[0].parent === null, "main frame first");
+      assert.equal(tree[0].url, native.getURL());
+      assert.equal(tree[0].osProcessId, native.getOSProcessId());
+      assert.equal(yield* web.rendererProcessId, native.getProcessId());
+      assert.deepEqual(yield* web.sharedWorkers, []);
+      assert.equal(typeof (yield* web.devToolsTargetId), "string");
+      // Listing printers asks the system's print service. This Linux machine has none, and the
+      // unanswered native call was seen to keep the process from quitting, so it is made only
+      // where the platform always has one.
+      const printerList =
+        process.platform === "linux"
+          ? "not asked: no print service here"
+          : yield* web.printers.pipe(
+              Effect.timeoutOption("10 seconds"),
+              Effect.map((found) => (found._tag === "Some" ? found.value.length : "no answer")),
+            );
+      const rtc = yield* web.webRtc;
+      assert.equal(typeof rtc.ipHandlingPolicy, "string");
+      yield* web.setWebRtcIpHandlingPolicy("default_public_interface_only");
+      assert.equal((yield* web.webRtc).ipHandlingPolicy, "default_public_interface_only");
+      yield* web.setWebRtcIpHandlingPolicy("default");
+      yield* web.setWebRtcUdpPortRange({ min: 20000, max: 20100 });
+      assert.deepEqual((yield* web.webRtc).udpPortRange, { min: 20000, max: 20100 });
+      yield* web.setWebRtcUdpPortRange({ min: 0, max: 0 });
+      expectCode(yield* Effect.exit(web.setWebRtcUdpPortRange({ min: 2, max: 1 })), "Protocol");
+      yield* web.setCaretBrowsing(true);
+      assert.equal(yield* web.caretBrowsing, true);
+      yield* web.setCaretBrowsing(false);
+      expectCode(yield* Effect.exit(web.addDevToolsWorkspace("relative")), "Protocol");
       expectCode(yield* Effect.exit(web.edit("destroy")), "Protocol");
       expectCode(
         yield* Effect.exit(web.startDrag({ files: ["relative.txt"], icon: "/tmp/none.png" })),
@@ -300,7 +330,9 @@ const runChecks = (origin) =>
       yield* web.setVisualZoomLimits({ minimum: 1, maximum: 3 });
       yield* web.setImageAnimationPolicy("animate");
       yield* Fiber.interrupt(pageEvents.fiber);
-      record("page events, activity, editing commands, and device emulation reach the native page", {
+      record("page events, activity, inspection reads, editing commands, and device emulation reach the native page", {
+        frames: tree.length,
+        printers: printerList,
         kinds: [...new Set(pageEvents.values.map((event) => event.kind))],
         themeColor: pageEvents.values.find((event) => event.kind === "theme-color")?.color,
         widthBefore,

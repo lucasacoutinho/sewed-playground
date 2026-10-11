@@ -824,6 +824,12 @@ const runChecks = (origin) =>
         "Protocol",
       );
       expectCode(yield* Effect.exit(Session.setCodeCachePath(scratch, "relative")), "Protocol");
+      const pathSession = yield* Session.fromPath(mkdtempSync(join(tmpdir(), "sewed-session-path-")));
+      assert.equal(typeof (yield* Session.userAgent(pathSession)), "string");
+      expectCode(yield* Effect.exit(Session.fromPath("relative")), "Protocol");
+      assert.equal(typeof (yield* Session.isProtocolHandled(scratch, "https")), "boolean");
+      assert.equal(yield* Session.isProtocolHandled(scratch, "sewed-unregistered"), false);
+      expectCode(yield* Effect.exit(Session.isProtocolHandled(scratch, "not a scheme")), "Protocol");
       const agent = yield* Session.userAgent(session);
       yield* Session.setUserAgent(session, `${agent} SewedExtras/1`);
       assert.ok((yield* Session.userAgent(session)).endsWith("SewedExtras/1"));

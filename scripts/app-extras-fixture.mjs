@@ -3,7 +3,16 @@ import { createServer } from "node:http";
 import { app, BrowserWindow as NativeBrowserWindow } from "electron";
 import { Cause, Effect, Fiber, Redacted, Stream } from "effect";
 import { Certificate, Decidables, Decision, Navigation, Renderer } from "sewed";
-import { App, BrowserWindow, CommandLine, GlobalShortcut, Image, Paths, Screen } from "sewed/main";
+import {
+  App,
+  BrowserWindow,
+  CommandLine,
+  GlobalShortcut,
+  Image,
+  Paths,
+  SafeStorage,
+  Screen,
+} from "sewed/main";
 
 const checks = [];
 const record = (name, evidence = {}) => {
@@ -222,8 +231,18 @@ const runChecks = (origin) =>
           Decision.async(() => Effect.succeed({ kind: "none" })),
         ),
       );
+      const asyncStorage = yield* SafeStorage.asyncAvailable;
+      assert.equal(typeof asyncStorage, "boolean");
+      if (asyncStorage) {
+        const sealed = yield* SafeStorage.encryptAsync(Redacted.make("sewed async secret"));
+        const opened = yield* SafeStorage.decryptAsync(sealed);
+        assert.equal(Redacted.value(opened.value), "sewed async secret");
+        assert.equal(typeof opened.shouldReEncrypt, "boolean");
+      }
+      expectCode(yield* Effect.exit(App.importCertificate({ certificate: "relative.p12", password: Redacted.make("x") })), "Protocol");
       record("host resolver, fallback agent, command line, shortcut suspension, and point conversion answer natively", {
         fileIcon: iconExit._tag,
+        asyncStorage,
         dip,
       });
 
