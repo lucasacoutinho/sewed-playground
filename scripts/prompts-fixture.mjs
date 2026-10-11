@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
+import { execFile } from "node:child_process";
 import { createServer } from "node:http";
+import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow as NativeBrowserWindow, session as nativeSession } from "electron";
 import { Cause, Effect, Exit, Fiber, Scope, Stream } from "effect";
 import { Decidables, Decision, Renderer } from "sewed";
-import { App, BaseWindow, BrowserWindow, Clipboard, Image, Net, Protocol, Session, Tray, View, WebContentsView } from "sewed/main";
+import { App, BaseWindow, BrowserWindow, Clipboard, Image, Net, Protocol, Session, SystemPreferences, Tray, View, WebContentsView } from "sewed/main";
 
+const execFileAsync = promisify(execFile);
 const checks = [];
 const served = [];
 const record = (name, evidence = {}) => {
@@ -398,6 +401,81 @@ const runChecks = (server) =>
         blockedInside: guestBlocked.map((entry) => new URL(entry.url).pathname),
       });
 
+      // A window a page opens is denied without a decider. Allowed, the library builds it, so it
+      // is owned from its first moment: a guest's gates, none of its opener's privileges.
+      const newWindow = (known) => NativeBrowserWindow.getAllWindows().find((each) => !known.has(each.id));
+      const knownIds = () => new Set(NativeBrowserWindow.getAllWindows().map((each) => each.id));
+      const beforeOpener = knownIds();
+      const openerScope = yield* Scope.fork(yield* Effect.scope);
+      const openerWindow = yield* BrowserWindow.make({ show: false, title: "Sewed opener" }).pipe(Scope.provide(openerScope));
+      yield* openerWindow.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
+      const nativeOpener = newWindow(beforeOpener);
+      assert.ok(nativeOpener, "the native opener window");
+      const openFromPage = (path) =>
+        Effect.promise(() => nativeOpener.webContents.executeJavaScript(`void window.open(${JSON.stringify(`${origin}${path}`)}, "_blank", "width=320,height=240")`, true));
+      const openerBlocked = [];
+      const openerWatch = yield* openerWindow.webContents.blocked.pipe(
+        Stream.runForEach((entry) => Effect.sync(() => openerBlocked.push(entry))),
+        Effect.forkChild,
+      );
+      const popups = [];
+      const popupWatch = yield* openerWindow.webContents.popups.pipe(
+        Stream.runForEach((handle) => Effect.sync(() => popups.push(handle))),
+        Effect.forkChild,
+      );
+      yield* Effect.sleep(100);
+      const windowsBefore = NativeBrowserWindow.getAllWindows().length;
+      yield* openFromPage("/inner");
+      yield* waitFor(() => openerBlocked.some((entry) => entry.kind === "popup"), "the undecided popup reported as blocked");
+      assert.equal(NativeBrowserWindow.getAllWindows().length, windowsBefore, "a denied popup creates no window");
+      yield* openerWindow.webContents.decide(
+        Decidables.WebContents.Popup,
+        Decision.sync((event) => (event.url.endsWith("/inner") ? "allow" : "deny")),
+      ).pipe(Scope.provide(openerScope));
+      const beforePopup = knownIds();
+      yield* openFromPage("/inner");
+      const popup = yield* waitFor(() => popups[0], "the allowed popup arriving as a handle");
+      assert.equal(popup.openerId, openerWindow.id);
+      const nativePopup = newWindow(beforePopup);
+      assert.ok(nativePopup, "the native popup window");
+      const preferences = nativePopup.webContents.getLastWebPreferences();
+      assert.deepEqual(
+        { sandbox: preferences.sandbox, contextIsolation: preferences.contextIsolation, nodeIntegration: preferences.nodeIntegration, preload: preferences.preload ?? null },
+        { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: null },
+        "the popup has none of its opener's privileges",
+      );
+      assert.ok((yield* App.windows).some((entry) => entry.id === popup.id), "the popup is listed under its Sewed id");
+      assert.equal(yield* App.webContents(popup.id), popup.webContents);
+      assert.ok((yield* popup.webContents.userAgent).length > 0, "an owned operation reaches the popup");
+      // Its own navigation is gated like a guest's.
+      const popupBlocked = [];
+      const popupBlockedWatch = yield* popup.blocked.pipe(
+        Stream.runForEach((entry) => Effect.sync(() => popupBlocked.push(entry))),
+        Effect.forkChild,
+      );
+      yield* Effect.sleep(100);
+      yield* Effect.promise(() => nativePopup.webContents.executeJavaScript(`void setTimeout(() => { location.href = ${JSON.stringify(`${origin}/elsewhere`)}; }, 50)`, true));
+      yield* waitFor(() => popupBlocked.some((entry) => entry.kind === "navigation"), "the popup's own navigation denied");
+      // A popup of the popup is denied: nothing on its handle allows one.
+      yield* Effect.promise(() => nativePopup.webContents.executeJavaScript(`void setTimeout(() => window.open(${JSON.stringify(`${origin}/inner`)}), 50)`, true));
+      yield* waitFor(() => popupBlocked.some((entry) => entry.kind === "popup"), "the popup's own popup denied");
+      // Closing it ends the handle.
+      yield* popup.close;
+      assert.equal((yield* popup.awaitClosed.pipe(Effect.timeoutOption("8 seconds")))._tag, "Some");
+      assert.equal(errorOf(yield* Effect.exit(popup.webContents.userAgent)).code, "Closed");
+      assert.equal(yield* App.webContents(popup.id), null);
+      // A popup does not outlive the window that opened it.
+      yield* openFromPage("/inner");
+      const second = yield* waitFor(() => popups[1], "a second popup");
+      yield* Fiber.interrupt(openerWatch);
+      yield* Fiber.interrupt(popupWatch);
+      yield* Fiber.interrupt(popupBlockedWatch);
+      yield* Scope.close(openerScope, Exit.void);
+      assert.equal((yield* second.awaitClosed.pipe(Effect.timeoutOption("8 seconds")))._tag, "Some", "the popup closed with its opener");
+      record("an allowed popup is an owned window with a guest's gates, and closes with its opener", {
+        blockedInside: popupBlocked.map((entry) => entry.kind),
+      });
+
       // A window's own menu bar is the same owned menu the application's is.
       const barWindow = yield* BrowserWindow.make({ show: false, title: "Sewed bar" });
       const barScope = yield* Scope.fork(yield* Effect.scope);
@@ -419,6 +497,48 @@ const runChecks = (server) =>
       yield* Scope.close(barAgain, Exit.void);
       assert.equal(errorOf(yield* Effect.exit(App.dock.menu({ items: [{ kind: "command", id: "a", label: "A" }] }))).code, "Native");
       yield* barWindow.blur;
+      // A person's keystroke on that window reaches its own menu's selections, and only them.
+      if (process.platform === "linux") {
+        const shownScope = yield* Scope.fork(yield* Effect.scope);
+        const shownTitle = `Sewed shown bar ${process.pid}`;
+        const shown = yield* BrowserWindow.make({ title: shownTitle, width: 420, height: 260 }).pipe(Scope.provide(shownScope));
+        yield* shown.webContents.load(Renderer.entry(new URL("/", origin), { bindings: [] }), { bindings: [] });
+        const shownMenu = yield* shown
+          .setMenu({
+            items: [
+              {
+                kind: "submenu",
+                label: "Tools",
+                items: [{ kind: "command", id: "bar-sync", label: "Sync", accelerator: "Control+Shift+B" }],
+              },
+            ],
+          })
+          .pipe(Scope.provide(shownScope));
+        const chosen = [];
+        const choosing = yield* shownMenu.selections.pipe(
+          Stream.runForEach((selection) => Effect.sync(() => chosen.push(selection))),
+          Effect.forkChild,
+        );
+        yield* shown.focus;
+        yield* Effect.sleep(300);
+        const nativeShown = NativeBrowserWindow.getAllWindows().find((each) => each.getTitle() === shownTitle || each.webContents.getURL() === `${origin}/` && each.isVisible());
+        assert.ok(nativeShown, "the shown window");
+        const press = () =>
+          Effect.promise(() =>
+            execFileAsync(
+              "python3",
+              ["scripts/application-menu-window.py", String(process.pid), String(nativeShown.getNativeWindowHandle().readUInt32LE(0)), "b", "Control_L", "Shift_L"],
+              { timeout: 4_000 },
+            ),
+          );
+        for (let attempt = 0; attempt < 5 && chosen.length === 0; attempt++) {
+          yield* press();
+          yield* Effect.sleep(300);
+        }
+        assert.deepEqual(chosen[0], { kind: "command", id: "bar-sync" }, "the keystroke chose the window menu's command");
+        yield* Fiber.interrupt(choosing);
+        yield* Scope.close(shownScope, Exit.void);
+      }
       record("a window's menu bar is an owned menu of its own");
 
       // A window's root is a container the program owns, for a scope.
@@ -490,6 +610,10 @@ const runChecks = (server) =>
       assert.deepEqual(yield* Clipboard.selection.read("text"), { kind: "text", text: "sewed selection" });
       assert.ok((yield* Clipboard.selection.formats).includes("text"));
       assert.equal(errorOf(yield* Effect.exit(Clipboard.selection.read("nonsense"))).code, "Protocol");
+      if (process.platform !== "darwin") {
+        assert.equal(errorOf(yield* Effect.exit(SystemPreferences.userDefault("AppleInterfaceStyle", "string"))).code, "Native");
+        assert.equal(errorOf(yield* Effect.exit(SystemPreferences.setUserDefault("sewed", { type: "integer", value: 1.5 }))).code, "Protocol");
+      }
       record("preconnect, crop and the primary selection");
 
       // A scheme served straight from a directory, with no handler.
