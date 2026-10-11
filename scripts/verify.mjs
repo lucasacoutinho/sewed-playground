@@ -654,7 +654,10 @@ try {
       await delay(500);
       bytes = Number((await first.attribute(guest.observations.captured, "data-guest-capture-bytes")) ?? 0);
     }
-    assert.ok(bytes > 0, "guest capture returned bytes");
+    assert.ok(
+      bytes > 0,
+      `guest capture returned bytes; the pane reported: ${JSON.stringify((await first.text(guest.observations.error)) ?? "")} and ${JSON.stringify(await first.text(guest.observations.captured))}`,
+    );
     pass("guest-capture", "capture through the host policy returns PNG bytes", { bytes });
   }
 
