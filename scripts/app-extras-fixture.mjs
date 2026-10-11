@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { app, BrowserWindow as NativeBrowserWindow } from "electron";
 import { Cause, Effect, Fiber, Redacted, Stream } from "effect";
 import { Certificate, Decidables, Decision, Navigation, Renderer } from "sewed";
@@ -204,9 +207,15 @@ const runChecks = (origin) =>
       assert.equal(typeof (yield* App.applicationNameForProtocol("https://example.com")), "string");
       expectCode(yield* Effect.exit(App.applicationNameForProtocol("not a url")), "Protocol");
       expectCode(yield* Effect.exit(App.fileIcon("relative.txt")), "Protocol");
-      const iconExit = yield* Effect.exit(App.fileIcon(process.execPath, "small"));
-      if (iconExit._tag === "Success") assert.ok(iconExit.value instanceof Uint8Array);
-      else expectCode(iconExit, "Native");
+      // On Linux the icon is the one for the file's type, so a file with a known extension has
+      // one and an extensionless file (an executable, a directory) fails Native.
+      const iconTarget = join(tmpdir(), `sewed-icon-${process.pid}.txt`);
+      writeFileSync(iconTarget, "an icon target");
+      const iconExit = yield* Effect.exit(App.fileIcon(iconTarget, "small"));
+      assert.equal(iconExit._tag, "Success");
+      assert.deepEqual([...iconExit.value.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], "PNG bytes");
+      if (process.platform === "linux")
+        expectCode(yield* Effect.exit(App.fileIcon(process.execPath, "small")), "Native");
       assert.equal(yield* CommandLine.has("sewed-no-such-switch"), false);
       assert.equal(yield* CommandLine.value("sewed-no-such-switch"), "");
       expectCode(yield* Effect.exit(CommandLine.has("--bad name")), "Protocol");

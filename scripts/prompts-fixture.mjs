@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -86,14 +87,56 @@ const runChecks = (server) =>
       }
       record("a native message box opens, an interruption closes it, and the window takes the next");
 
+      // The blocking form stops the main process until answered, so the answer has to come from
+      // outside it: a helper process, started first, presses Return on the dialog through X11.
+      // Linux only, where that helper exists.
+      if (process.platform === "linux") {
+        const title = `Sewed blocking ${process.pid}`;
+        spawn(
+          "sh",
+          [
+            "-c",
+            // Presses Return once the dialog exists; it may open a moment late if the window was busy.
+            `sleep 2; for i in $(seq 1 60); do out=$(python3 scripts/dialog-window.py ${process.pid} "${title}" Return); [ "$out" != "[]" ] && break; sleep 0.25; done`,
+          ],
+          { detached: true, stdio: "ignore" },
+        ).unref();
+        const started = Date.now();
+        // The window refuses a blocking dialog, like any other, while an earlier one is closing.
+        const blockingOptions = {
+          title,
+          message: "Sewed blocking prompt",
+          buttons: ["Cancel", "Continue"],
+          defaultId: 1,
+          cancelId: 0,
+        };
+        let answer;
+        for (const deadline = Date.now() + 8_000; ; ) {
+          const attempt = yield* Effect.exit(window.dialog.messageBlocking(blockingOptions));
+          if (attempt._tag === "Success") {
+            answer = attempt.value;
+            break;
+          }
+          assert.equal(errorOf(attempt).code, "Limit");
+          assert.ok(Date.now() < deadline, "the window never became free for the blocking dialog");
+          yield* Effect.sleep(100);
+        }
+        assert.equal(answer, 1, "Return chose the default button");
+        assert.ok(Date.now() - started >= 1_500, "the call blocked until the dialog was answered");
+        record("a blocking message box holds the main process until a person answers it", {
+          answer,
+          blockedMs: Date.now() - started,
+        });
+      }
+
       // A file dialog has no abort signal; closing its window is what dismisses it, and the
       // Effect then fails Closed.
       const pickerScope = yield* Scope.fork(yield* Effect.scope);
       const picker = yield* BrowserWindow.make({ show: true, width: 300, height: 200, title: "Sewed picker" }).pipe(
         Scope.provide(pickerScope),
       );
-      const picking = yield* Effect.forkChild(Effect.exit(picker.dialog.open({ mode: "file", title: "Sewed open" })));
-      yield* Effect.sleep(800);
+      const picking = yield* whenFree(picker.dialog.open({ mode: "file", title: "Sewed open" }));
+      yield* Effect.sleep(500);
       yield* Scope.close(pickerScope, Exit.void);
       const picked = yield* Fiber.join(picking).pipe(Effect.timeoutOption("8 seconds"));
       assert.equal(picked._tag, "Some", "the open dialog's Effect settled once its window closed");
