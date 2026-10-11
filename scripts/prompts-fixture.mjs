@@ -166,6 +166,25 @@ const runChecks = (server) =>
         { width: 2, height: 2, bytes: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255]) },
         { format: "png" },
       );
+      // One image given as an encoding per scale factor: a display at 2x gets the sharp one.
+      const sharp = yield* Image.encode(
+        { width: 4, height: 4, bytes: new Uint8Array(64).fill(255) },
+        { format: "png" },
+      );
+      const scaledIcon = { representations: [{ scaleFactor: 1, bytes: pixel }, { scaleFactor: 2, bytes: sharp }] };
+      assert.deepEqual(
+        (({ width, height }) => ({ width, height }))(yield* Image.decode(scaledIcon)),
+        { width: 2, height: 2 },
+        "a scaled image has its 1x size",
+      );
+      const scaledScope = yield* Scope.fork(yield* Effect.scope);
+      const scaledTray = yield* Effect.exit(Tray.make({ icon: scaledIcon }).pipe(Scope.provide(scaledScope)));
+      assert.ok(Exit.isSuccess(scaledTray), "a tray takes a scaled icon");
+      yield* Scope.close(scaledScope, Exit.void);
+      assert.equal(
+        errorOf(yield* Effect.exit(Image.decode({ representations: [{ scaleFactor: 2, bytes: new Uint8Array([1, 2, 3]) }] }))).code,
+        "Protocol",
+      );
       const trayScope = yield* Scope.fork(yield* Effect.scope);
       const tray = yield* Effect.exit(
         Tray.make({ icon: pixel, tooltip: "Sewed prompts" }).pipe(Scope.provide(trayScope)),
@@ -237,10 +256,11 @@ const runChecks = (server) =>
           },
         ],
       }).pipe(Scope.provide(editScope));
-      assert.deepEqual(yield* editable.item("save"), { id: "save", label: "Save", enabled: true, visible: true, checked: false });
+      assert.deepEqual(yield* editable.item("save"), { id: "save", label: "Save", enabled: true, visible: true, checked: false, commandId: (yield* editable.item("save")).commandId, userAccelerator: null });
+      assert.equal(typeof (yield* editable.item("save")).commandId, "number");
       yield* editable.update("save", { label: "Save all", enabled: false });
       yield* editable.update("wrap", { checked: true });
-      assert.deepEqual(yield* editable.item("save"), { id: "save", label: "Save all", enabled: false, visible: true, checked: false });
+      assert.deepEqual(yield* editable.item("save"), { id: "save", label: "Save all", enabled: false, visible: true, checked: false, commandId: (yield* editable.item("save")).commandId, userAccelerator: null });
       assert.equal((yield* editable.item("wrap")).checked, true);
       assert.equal(errorOf(yield* Effect.exit(editable.item("missing"))).code, "Protocol");
       assert.equal(errorOf(yield* Effect.exit(editable.update("save", { label: "" }))).code, "Protocol");
@@ -304,13 +324,15 @@ const runChecks = (server) =>
       yield* inPage(`document.getElementById("inner").executeJavaScript(${JSON.stringify(`location.href = "${origin}/elsewhere"`)})`);
       yield* waitFor(() => guestBlocked.some((entry) => entry.kind === "navigation"), "the webview's own navigation denied");
       // The host page pointing the element elsewhere is a load nothing can prevent beforehand:
-      // it is stopped before its document commits and reported, until the handle's decider allows it.
+      // its request is cancelled before it is sent and it is reported, until the handle's decider
+      // allows it.
       const urlOfInner = () => inPage(`document.getElementById("inner").getURL()`);
       yield* inPage(`document.getElementById("inner").src = ${JSON.stringify(`${origin}/moved`)}`);
       yield* waitFor(() => guestBlocked.some((entry) => entry.url.endsWith("/moved")), "the host-directed load stopped");
       yield* Effect.sleep(500);
       assert.equal(yield* urlOfInner(), `${origin}/inner`, "the webview stayed where it was");
       assert.equal(yield* inPage(`document.getElementById("inner").executeJavaScript("document.title")`), "Sewed inner");
+      assert.ok(!served.includes("/moved"), "the denied load never reached the server");
       yield* webview.webContents.decide(
         Decidables.WebContents.Navigation,
         Decision.sync((event) => (event.url.endsWith("/granted") ? "allow" : "deny")),
