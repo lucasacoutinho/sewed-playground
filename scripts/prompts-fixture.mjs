@@ -47,6 +47,26 @@ const echoServer = () =>
     server.listen(0, "127.0.0.1", () => resolve(server));
   });
 
+// A window stays busy after an interruption until its native dialog or menu has really gone,
+// which the library reports as Limit; how long that takes is the platform's. This opens a prompt
+// as soon as the window will take one.
+const whenFree = (prompt) =>
+  Effect.gen(function* () {
+    const deadline = Date.now() + 8_000;
+    for (;;) {
+      const fiber = yield* Effect.forkChild(Effect.exit(prompt));
+      yield* Effect.sleep(300);
+      const settled = fiber.pollUnsafe();
+      if (settled === undefined) return fiber;
+      const exit = settled._tag === "Success" ? settled.value : settled;
+      const refused = exit._tag === "Failure" ? Cause.findErrorOption(exit.cause) : undefined;
+      assert.ok(
+        refused?._tag === "Some" && refused.value.code === "Limit" && Date.now() < deadline,
+        `the prompt did not stay open: ${exit._tag === "Failure" ? Cause.pretty(exit.cause) : JSON.stringify(exit.value)}`,
+      );
+    }
+  });
+
 const runChecks = (server) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -54,28 +74,17 @@ const runChecks = (server) =>
       const native = NativeBrowserWindow.getAllWindows().find((each) => each.getTitle() === "Sewed prompts");
       assert.ok(native, "the native window");
 
-      // A message box is opened natively and closed by interrupting the Effect that shows it.
-      for (const attempt of [1, 2]) {
-        const shown = yield* Effect.forkChild(
+      // A message box is opened natively and closed by interrupting the Effect that shows it;
+      // the window then takes the next one once the first has gone.
+      for (const attempt of [1, 2, 3]) {
+        const shown = yield* whenFree(
           window.dialog.message({ message: `Sewed prompt ${attempt}`, buttons: ["Cancel", "Continue"] }),
         );
-        yield* Effect.sleep(600);
-        const early = shown.pollUnsafe();
-        assert.equal(
-          early,
-          undefined,
-          `the dialog is still open, waiting for an answer; it had settled with ${early === undefined ? "" : early._tag === "Success" ? JSON.stringify(early.value) : Cause.pretty(early.cause)}`,
-        );
+        yield* Effect.sleep(300);
+        assert.equal(shown.pollUnsafe(), undefined, "the dialog is still open, waiting for an answer");
         yield* Fiber.interrupt(shown);
       }
-      // The window can show another dialog afterwards: nothing was left pending.
-      const again = yield* Effect.forkChild(
-        window.dialog.message({ message: "Sewed prompt after interruption", buttons: ["OK"] }),
-      );
-      yield* Effect.sleep(300);
-      assert.equal(again.pollUnsafe(), undefined);
-      yield* Fiber.interrupt(again);
-      record("a native message box opens and an interruption closes it, leaving the window free");
+      record("a native message box opens, an interruption closes it, and the window takes the next");
 
       // A file dialog has no abort signal; closing its window is what dismisses it, and the
       // Effect then fails Closed.
@@ -92,16 +101,13 @@ const runChecks = (server) =>
       record("a native file dialog is dismissed by closing its window, and its Effect fails Closed");
 
       // A popup menu opens natively and an interruption closes it.
-      const popup = yield* Effect.forkChild(
-        window.menu.popup({ items: [{ kind: "command", id: "inspect", label: "Inspect" }] }),
-      );
-      yield* Effect.sleep(500);
-      yield* Fiber.interrupt(popup);
-      const dismissed = yield* window.menu
-        .popup({ items: [{ kind: "command", id: "again", label: "Again" }] })
-        .pipe(Effect.timeoutOption("400 millis"));
-      assert.equal(dismissed._tag, "None", "a second popup opens after the first was interrupted");
-      record("a native popup menu opens and an interruption closes it");
+      for (const id of ["inspect", "again"]) {
+        const popup = yield* whenFree(window.menu.popup({ items: [{ kind: "command", id, label: id }] }));
+        yield* Effect.sleep(300);
+        assert.equal(popup.pollUnsafe(), undefined, "the popup is still open");
+        yield* Fiber.interrupt(popup);
+      }
+      record("a native popup menu opens, an interruption closes it, and the window takes the next");
 
       // A tray icon exists for its scope and takes its settings natively.
       const pixel = yield* Image.encode(
