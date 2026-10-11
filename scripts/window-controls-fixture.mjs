@@ -564,7 +564,8 @@ const runChecks = Effect.gen(function* () {
     yield* first.handle.setIgnoreMouseEvents(true);
     yield* first.handle.setIgnoreMouseEvents(false);
     yield* first.handle.setAutoHideMenuBar(true);
-    assert.equal(first.native.isMenuBarAutoHide(), true);
+    // A macOS window has no menu bar of its own to hide.
+    if (process.platform !== "darwin") assert.equal(first.native.isMenuBarAutoHide(), true);
     yield* first.handle.setAutoHideMenuBar(false);
     yield* first.handle.setBackgroundColor("#102030");
     assert.equal((yield* first.handle.backgroundColor).toLowerCase(), "#102030");
@@ -591,12 +592,17 @@ const runChecks = Effect.gen(function* () {
     assert.equal(yield* first.handle.shadow, first.native.hasShadow());
     yield* first.handle.setHasShadow(first.native.hasShadow());
     assert.equal(yield* first.handle.normal, first.native.isNormal());
-    assert.equal(yield* first.handle.menuBarAutoHide, first.native.isMenuBarAutoHide());
+    if (process.platform === "darwin") {
+      expectCode(yield* Effect.exit(first.handle.menuBarAutoHide), "Native");
+      expectCode(yield* Effect.exit(first.handle.removeMenu), "Native");
+    } else {
+      assert.equal(yield* first.handle.menuBarAutoHide, first.native.isMenuBarAutoHide());
+      yield* first.handle.removeMenu;
+    }
     const nativeHandle = yield* first.handle.nativeHandle;
     assert.ok(nativeHandle instanceof Uint8Array && nativeHandle.byteLength > 0, "native handle bytes");
     yield* first.handle.moveAbove(yield* first.handle.mediaSourceId);
     expectCode(yield* Effect.exit(first.handle.moveAbove("")), "Protocol");
-    yield* first.handle.removeMenu;
     const windowEvents = yield* first.handle.events.pipe(
       Stream.runForEach(() => Effect.void),
       Effect.forkScoped,
