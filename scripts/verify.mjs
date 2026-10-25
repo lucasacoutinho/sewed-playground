@@ -259,7 +259,7 @@ try {
         target.type === "page" &&
         (development
           ? target.url.startsWith("http://127.0.0.1:")
-          : target.url.includes("sewed-playground/dist/renderer/index.html")),
+          : target.url.includes("/dist/renderer/index.html")),
     );
     return list.length === 2 ? list : undefined;
   }, "two renderer windows");
